@@ -1,24 +1,42 @@
-//
-//  ContentView.swift
-//  second
-//
-//  Created by David Charles Taylor on 6/11/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var sessionStore = ReflectionSessionStore()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            ObservatoryScreen()
+                .tabItem {
+                    Label("Observatory", systemImage: "house")
+                }
+
+            ReflectionTimelineScreen()
+                .tabItem {
+                    Label("Timeline", systemImage: "clock")
+                }
+
+            CorrelationScreen()
+                .tabItem {
+                    Label("Correlation", systemImage: "waveform.path.ecg")
+                }
+
+            ConversationDynamicsScreen()
+                .tabItem {
+                    Label("Dynamics", systemImage: "arrow.left.arrow.right")
+                }
+
+            AudioCaptureScreen()
+                .tabItem {
+                    Label("Capture", systemImage: "mic")
+                }
+
+            SettingsScreen()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
         }
-        .padding()
+        .tint(SecondTheme.heartRate)
+        .environmentObject(sessionStore)
     }
 }
 
-#Preview {
-    ContentView()
-}

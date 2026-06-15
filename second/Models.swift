@@ -1,0 +1,179 @@
+import Foundation
+
+enum SignalSource: String, Codable {
+    case mock
+    case liveWatch
+    case healthKitBackfill
+    case transcript
+    case userMarker
+    case acoustic
+    case observationEngine
+}
+
+enum SignalQuality: String, Codable {
+    case high
+    case medium
+    case low
+    case unavailable
+}
+
+enum ReflectionState: String, Codable {
+    case idle
+    case recording
+    case completed
+}
+
+enum ObservationCategory: String, Codable, CaseIterable {
+    case language = "Language"
+    case voice = "Voice"
+    case behavior = "Behavior"
+    case body = "Body"
+    case environment = "Environment"
+}
+
+enum ObservationEventKind: String, Codable {
+    case pauseGap
+    case breathCue
+    case stressLanguage
+    case conflictLanguage
+    case uncertaintyLanguage
+    case reflectiveQuestion
+    case regulationAttempt
+    case repetition
+
+    case falseStart
+    case selfCorrection
+    case qualificationLanguage
+    case certaintyLanguage
+    case emotionSearch
+}
+
+struct ObservationEvent: Identifiable, Codable {
+    var id = UUID()
+    var timestamp: Date
+    var kind: ObservationEventKind
+    var category: ObservationCategory
+    var title: String
+    var detail: String
+    var source: SignalSource
+    var confidence: SignalQuality
+    var relatedText: String?
+    var tags: [String]
+    var engineVersion: String
+}
+
+struct ReflectionSession: Identifiable, Codable {
+    var id = UUID()
+    var title: String
+    var startedAt: Date
+    var endedAt: Date?
+    var state: ReflectionState
+    var transcript: [TranscriptEvent]
+    var observations: [Observation]
+    var observationEvents: [ObservationEvent]
+    var observationEngineVersion: String
+    var biometrics: BiometricWindow
+    var voice: VoiceSignals
+
+    var durationSeconds: Int {
+        let end = endedAt ?? Date()
+        return max(0, Int(end.timeIntervalSince(startedAt)))
+    }
+
+    var durationText: String {
+        let minutes = durationSeconds / 60
+        let seconds = durationSeconds % 60
+        return "\(minutes)m \(seconds)s"
+    }
+
+    var timeRangeText: String {
+        if let endedAt {
+            return "\(startedAt.shortTime) – \(endedAt.shortTime)"
+        } else {
+            return "\(startedAt.shortTime) – now"
+        }
+    }
+}
+
+struct TranscriptEvent: Identifiable, Codable {
+    var id = UUID()
+    var timestamp: Date
+    var speaker: Speaker
+    var text: String
+    var source: SignalSource
+}
+
+enum Speaker: String, Codable {
+    case user = "You"
+    case other = "They"
+}
+
+struct BiometricSample: Identifiable, Codable {
+    var id = UUID()
+    var timestamp: Date
+    var heartRate: Double?
+    var respiration: Double?
+    var hrv: Double?
+    var source: SignalSource
+    var quality: SignalQuality
+}
+
+struct BiometricWindow: Codable {
+    var queryStart: Date
+    var queryEnd: Date
+    var samples: [BiometricSample]
+    var quality: SignalQuality
+
+    var latestHeartRate: Double {
+        samples.compactMap { $0.heartRate }.last ?? 0
+    }
+
+    var averageHeartRate: Double {
+        let values = samples.compactMap { $0.heartRate }
+        guard !values.isEmpty else { return 0 }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageRespiration: Double {
+        let values = samples.compactMap { $0.respiration }
+        guard !values.isEmpty else { return 0 }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageHRV: Double {
+        let values = samples.compactMap { $0.hrv }
+        guard !values.isEmpty else { return 0 }
+        return values.reduce(0, +) / Double(values.count)
+    }
+}
+
+struct Observation: Identifiable, Codable {
+    var id = UUID()
+    var title: String
+    var detail: String
+    var confidence: SignalQuality
+}
+
+struct VoiceSignals: Codable {
+    var wordsPerMinute: Int
+    var pauseCount: Int
+    var hesitationMarkers: Int
+    var durationSeconds: Int
+}
+
+struct CorrelationScore: Identifiable {
+    var id = UUID()
+    var label: String
+    var value: Double
+    var signalColorName: String
+}
+
+struct ConversationDynamics {
+    var userSpeakingPercent: Double
+    var otherSpeakingPercent: Double
+    var turnsTaken: Int
+    var averageTurnLength: Double
+    var interruptions: Int
+    var dominanceIndex: Double
+}
+
