@@ -8,6 +8,7 @@ enum SignalSource: String, Codable {
     case userMarker
     case acoustic
     case observationEngine
+    case dynamicsEngine
 }
 
 enum SignalQuality: String, Codable {
@@ -40,7 +41,6 @@ enum ObservationEventKind: String, Codable {
     case reflectiveQuestion
     case regulationAttempt
     case repetition
-
     case falseStart
     case selfCorrection
     case qualificationLanguage
@@ -50,7 +50,11 @@ enum ObservationEventKind: String, Codable {
 
 struct ObservationEvent: Identifiable, Codable {
     var id = UUID()
+
+    /// Internal source of truth.
+    /// Keep this as Date. Do not convert to String for storage.
     var timestamp: Date
+
     var kind: ObservationEventKind
     var category: ObservationCategory
     var title: String
@@ -62,16 +66,44 @@ struct ObservationEvent: Identifiable, Codable {
     var engineVersion: String
 }
 
+enum DynamicsPatternKind: String, Codable {
+    case emotionalClarification
+    case emotionalAmbivalence
+    case regulationEffort
+    case uncertaintyLoop
+    case speechConstructionFriction
+    case stressRegulationCluster
+    case breathRegulationMarker
+    case reflectiveSenseMaking
+}
+
+struct DynamicsPattern: Identifiable, Codable {
+    var id = UUID()
+    var title: String
+    var kind: DynamicsPatternKind
+    var detail: String
+    var confidence: SignalQuality
+    var supportingEventIDs: [UUID]
+    var tags: [String]
+    var engineVersion: String
+}
+
 struct ReflectionSession: Identifiable, Codable {
     var id = UUID()
     var title: String
+
+    /// Internal source of truth.
+    /// Keep these as Date. Display format belongs in Date extension/UI only.
     var startedAt: Date
     var endedAt: Date?
+
     var state: ReflectionState
     var transcript: [TranscriptEvent]
     var observations: [Observation]
     var observationEvents: [ObservationEvent]
+    var dynamicsPatterns: [DynamicsPattern]
     var observationEngineVersion: String
+    var dynamicsEngineVersion: String
     var biometrics: BiometricWindow
     var voice: VoiceSignals
 
@@ -88,16 +120,20 @@ struct ReflectionSession: Identifiable, Codable {
 
     var timeRangeText: String {
         if let endedAt {
-            return "\(startedAt.shortTime) – \(endedAt.shortTime)"
+            return "\(startedAt.displayTime) – \(endedAt.displayTime)"
         } else {
-            return "\(startedAt.shortTime) – now"
+            return "\(startedAt.displayTime) – now"
         }
     }
 }
 
 struct TranscriptEvent: Identifiable, Codable {
     var id = UUID()
+
+    /// Internal source of truth.
+    /// Keep this as Date. Do not convert to String for storage.
     var timestamp: Date
+
     var speaker: Speaker
     var text: String
     var source: SignalSource
@@ -110,7 +146,11 @@ enum Speaker: String, Codable {
 
 struct BiometricSample: Identifiable, Codable {
     var id = UUID()
+
+    /// Internal source of truth.
+    /// Keep this as Date. Do not convert to String for storage.
     var timestamp: Date
+
     var heartRate: Double?
     var respiration: Double?
     var hrv: Double?
@@ -176,4 +216,3 @@ struct ConversationDynamics {
     var interruptions: Int
     var dominanceIndex: Double
 }
-

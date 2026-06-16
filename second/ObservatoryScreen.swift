@@ -6,15 +6,12 @@ struct ObservatoryScreen: View {
     @StateObject private var speechManager = SpeechRecognitionManager()
     @State private var timerTick = Date()
 
-    private var displaySession: ReflectionSession? {
-        store.activeSession
-    }
+    private var displaySession: ReflectionSession? { store.activeSession }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                SecondTheme.background
-                    .ignoresSafeArea()
+                SecondTheme.background.ignoresSafeArea()
 
                 if let session = displaySession {
                     activeSessionView(session)
@@ -28,14 +25,10 @@ struct ObservatoryScreen: View {
         }
     }
 
-    @ViewBuilder
     private func activeSessionView(_ session: ReflectionSession) -> some View {
         ScrollView {
             VStack(spacing: 16) {
-                ScreenHeader(
-                    title: "second",
-                    subtitle: store.isRecording ? "Recording Reflection" : "Live Reflection"
-                )
+                ScreenHeader(title: "second", subtitle: store.isRecording ? "Recording Reflection" : "Live Reflection")
 
                 Text("\(session.timeRangeText) • \(durationText)")
                     .font(.caption)
@@ -58,12 +51,10 @@ struct ObservatoryScreen: View {
                                         .font(.caption2)
                                         .foregroundStyle(SecondTheme.secondaryText)
                                         .frame(width: 78, alignment: .leading)
-
                                     Text(event.speaker.rawValue)
                                         .font(.caption)
                                         .bold()
                                         .frame(width: 38, alignment: .leading)
-
                                     Text(event.text)
                                         .font(.subheadline)
                                 }
@@ -81,6 +72,39 @@ struct ObservatoryScreen: View {
                     Text(session.observations.first?.detail ?? "No observed pattern yet. Stop the reflection to generate the first observation.")
                         .font(.subheadline)
                         .foregroundStyle(SecondTheme.primaryText)
+                }
+                .padding(.horizontal)
+
+                AppCard(title: "Reflection Dynamics") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(DynamicsEngine.summary(session.dynamicsPatterns))
+                            .font(.caption)
+                            .foregroundStyle(SecondTheme.secondaryText)
+                        Text("Engine version: \(session.dynamicsEngineVersion)")
+                            .font(.caption2)
+                            .foregroundStyle(SecondTheme.secondaryText)
+
+                        if session.dynamicsPatterns.isEmpty {
+                            Text("No dynamics patterns detected yet.")
+                                .font(.caption)
+                                .foregroundStyle(SecondTheme.secondaryText)
+                        } else {
+                            ForEach(session.dynamicsPatterns.prefix(4)) { pattern in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(pattern.title)
+                                        .font(.subheadline)
+                                        .bold()
+                                    Text(pattern.detail)
+                                        .font(.caption)
+                                        .foregroundStyle(SecondTheme.secondaryText)
+                                    Text("Confidence: \(pattern.confidence.rawValue.capitalized)")
+                                        .font(.caption2)
+                                        .foregroundStyle(SecondTheme.secondaryText)
+                                }
+                                Divider()
+                            }
+                        }
+                    }
                 }
                 .padding(.horizontal)
 
@@ -107,7 +131,32 @@ struct ObservatoryScreen: View {
                 .padding(.horizontal)
 
                 AppCard(title: "Observation Events", startsExpanded: false) {
-                    observationEventsView(session)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(ObservationEventEngine.eventSummary(session.observationEvents))
+                            .font(.caption)
+                            .foregroundStyle(SecondTheme.secondaryText)
+                        Text("Engine version: \(session.observationEngineVersion)")
+                            .font(.caption2)
+                            .foregroundStyle(SecondTheme.secondaryText)
+
+                        if session.observationEvents.isEmpty {
+                            Text("No micro-observation events recorded yet.")
+                                .font(.caption)
+                                .foregroundStyle(SecondTheme.secondaryText)
+                        } else {
+                            ForEach(ObservationEventEngine.groupedEvents(session.observationEvents), id: \.category) { group in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("\(group.category.rawValue) (\(group.events.count))")
+                                        .font(.subheadline)
+                                        .bold()
+                                    Text(ObservationEventEngine.categorySummary(group.category, events: group.events))
+                                        .font(.caption)
+                                        .foregroundStyle(SecondTheme.secondaryText)
+                                }
+                                Divider()
+                            }
+                        }
+                    }
                 }
                 .padding(.horizontal)
 
@@ -116,11 +165,9 @@ struct ObservatoryScreen: View {
                         Text("Body signals from \(session.biometrics.queryStart.shortTimeWithSeconds)–\(session.biometrics.queryEnd.shortTimeWithSeconds)")
                             .font(.caption)
                             .foregroundStyle(SecondTheme.secondaryText)
-
                         Text("No biometric samples attached to this session yet. Watch and HealthKit will be connected in a later build.")
                             .font(.caption)
                             .foregroundStyle(SecondTheme.secondaryText)
-
                         MetricRow(label: "Data quality", value: session.biometrics.quality.rawValue.capitalized)
                     }
                 }
@@ -130,7 +177,6 @@ struct ObservatoryScreen: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(session.observations.first(where: { $0.title == "Observatory Note" })?.detail ?? "No observatory note yet.")
                             .font(.subheadline)
-
                         Text("Observations are associations, not diagnoses.")
                             .font(.caption)
                             .foregroundStyle(SecondTheme.secondaryText)
@@ -142,73 +188,17 @@ struct ObservatoryScreen: View {
         }
     }
 
-    private func observationEventsView(_ session: ReflectionSession) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(ObservationEventEngine.eventSummary(session.observationEvents))
-                .font(.caption)
-                .foregroundStyle(SecondTheme.secondaryText)
-
-            Text("Engine version: \(session.observationEngineVersion)")
-                .font(.caption2)
-                .foregroundStyle(SecondTheme.secondaryText)
-
-            if session.observationEvents.isEmpty {
-                Text("No micro-observation events recorded yet.")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-            } else {
-                ForEach(ObservationEventEngine.groupedEvents(session.observationEvents), id: \.category) { group in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("\(group.category.rawValue) (\(group.events.count))")
-                            .font(.subheadline)
-                            .bold()
-
-                        Text(ObservationEventEngine.categorySummary(group.category, events: group.events))
-                            .font(.caption)
-                            .foregroundStyle(SecondTheme.secondaryText)
-
-                        ForEach(group.events.prefix(4)) { event in
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(event.title)
-                                    .font(.caption)
-                                    .bold()
-
-                                Text(event.detail)
-                                    .font(.caption2)
-                                    .foregroundStyle(SecondTheme.secondaryText)
-
-                                if let related = event.relatedText {
-                                    Text("Related: \(related)")
-                                        .font(.caption2)
-                                        .foregroundStyle(SecondTheme.secondaryText)
-                                        .lineLimit(2)
-                                }
-                            }
-                            .padding(.top, 3)
-                        }
-                    }
-
-                    Divider()
-                }
-            }
-        }
-    }
-
     private var emptyStateView: some View {
         VStack(spacing: 24) {
             Spacer()
-
             Image(systemName: "circle.dashed")
                 .font(.system(size: 64))
                 .foregroundStyle(SecondTheme.secondaryText)
-
             Text("No Active Reflection")
                 .font(.title2)
                 .bold()
-
             Text("Tap Start Reflection to begin.")
                 .foregroundStyle(SecondTheme.secondaryText)
-
             Button {
                 startReflectionAndSpeech()
             } label: {
@@ -218,7 +208,6 @@ struct ObservatoryScreen: View {
             .buttonStyle(.borderedProminent)
             .tint(SecondTheme.heartRate)
             .padding(.horizontal)
-
             Spacer()
         }
         .padding()
@@ -241,8 +230,7 @@ struct ObservatoryScreen: View {
                     speechManager.stop()
                     store.resetActiveSession()
                 } label: {
-                    Text("Reset")
-                        .frame(maxWidth: .infinity)
+                    Text("Reset").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
             } else {
@@ -258,8 +246,7 @@ struct ObservatoryScreen: View {
                 Button {
                     store.resetActiveSession()
                 } label: {
-                    Text("Clear")
-                        .frame(maxWidth: .infinity)
+                    Text("Clear").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
             }
@@ -271,9 +258,7 @@ struct ObservatoryScreen: View {
         Task {
             let allowed = await speechManager.requestPermissions()
             guard allowed else { return }
-
             store.startReflection()
-
             speechManager.start { text in
                 store.updateLiveTranscript(text)
             }
@@ -289,7 +274,6 @@ struct ObservatoryScreen: View {
             let seconds = Int(timerTick.timeIntervalSince(start))
             return "\(seconds / 60)m \(seconds % 60)s"
         }
-
         return displaySession?.durationText ?? "0m 0s"
     }
 }

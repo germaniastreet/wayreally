@@ -19,12 +19,7 @@ final class ReflectionSessionStore: ObservableObject {
         lastTranscriptUpdateDate = nil
         lastTranscriptText = ""
 
-        let emptyWindow = BiometricWindow(
-            queryStart: start,
-            queryEnd: start,
-            samples: [],
-            quality: .unavailable
-        )
+        let emptyWindow = BiometricWindow(queryStart: start, queryEnd: start, samples: [], quality: .unavailable)
 
         activeSession = ReflectionSession(
             title: "Live Reflection",
@@ -34,28 +29,21 @@ final class ReflectionSessionStore: ObservableObject {
             transcript: [],
             observations: [],
             observationEvents: [],
+            dynamicsPatterns: [],
             observationEngineVersion: ObservationEventEngine.engineVersion,
+            dynamicsEngineVersion: DynamicsEngine.engineVersion,
             biometrics: emptyWindow,
-            voice: VoiceSignals(
-                wordsPerMinute: 0,
-                pauseCount: 0,
-                hesitationMarkers: 0,
-                durationSeconds: 0
-            )
+            voice: VoiceSignals(wordsPerMinute: 0, pauseCount: 0, hesitationMarkers: 0, durationSeconds: 0)
         )
     }
 
     func updateLiveTranscript(_ text: String) {
-        print("TRANSCRIPT RECEIVED BY STORE:")
-        print(text)
-
         guard var session = activeSession, session.state == .recording else { return }
 
         let now = Date()
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmed.isEmpty else {
-            print("STORE IGNORED EMPTY TRANSCRIPT")
             return
         }
 
@@ -111,8 +99,9 @@ final class ReflectionSessionStore: ObservableObject {
         let end = Date()
         session.endedAt = end
         session.state = .completed
-        session.title = "Reflection at \(session.startedAt.shortTime)"
+        session.title = "Reflection at \(session.startedAt.displayTime)"
         session.observationEngineVersion = ObservationEventEngine.engineVersion
+        session.dynamicsEngineVersion = DynamicsEngine.engineVersion
 
         session.transcript = session.transcript.filter {
             !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -140,14 +129,9 @@ final class ReflectionSessionStore: ObservableObject {
             }
         }
 
-        session.biometrics = BiometricWindow(
-            queryStart: session.startedAt,
-            queryEnd: end,
-            samples: [],
-            quality: .unavailable
-        )
-
+        session.biometrics = BiometricWindow(queryStart: session.startedAt, queryEnd: end, samples: [], quality: .unavailable)
         session.observationEvents = ObservationEventEngine.enrich(session: session)
+        session.dynamicsPatterns = DynamicsEngine.analyze(session: session)
 
         let analysis = ReflectionAnalyzer.analyze(session: session)
 
@@ -178,4 +162,3 @@ final class ReflectionSessionStore: ObservableObject {
         lastTranscriptText = ""
     }
 }
-

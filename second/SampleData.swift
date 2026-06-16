@@ -7,9 +7,7 @@ enum SampleData {
         Calendar.current.date(byAdding: .minute, value: -27, to: now) ?? now
     }
 
-    static var sessionEnd: Date {
-        now
-    }
+    static var sessionEnd: Date { now }
 
     static var transcript: [TranscriptEvent] {
         [
@@ -28,16 +26,7 @@ enum SampleData {
             let hr = 95 + sin(Double(index) / 4.0) * 8 + Double(index % 9)
             let resp = 15.2 + sin(Double(index) / 5.0) * 1.3 + Double(index % 4) * 0.12
             let hrv = 48 + cos(Double(index) / 4.5) * 8 - Double(index % 5)
-            items.append(
-                BiometricSample(
-                    timestamp: t,
-                    heartRate: hr,
-                    respiration: resp,
-                    hrv: hrv,
-                    source: .mock,
-                    quality: .medium
-                )
-            )
+            items.append(BiometricSample(timestamp: t, heartRate: hr, respiration: resp, hrv: hrv, source: .mock, quality: .medium))
         }
         return items
     }
@@ -66,7 +55,9 @@ enum SampleData {
             transcript: transcript,
             observations: observations,
             observationEvents: [],
+            dynamicsPatterns: [],
             observationEngineVersion: ObservationEventEngine.engineVersion,
+            dynamicsEngineVersion: DynamicsEngine.engineVersion,
             biometrics: biometricWindow,
             voice: voiceSignals
         )
@@ -75,9 +66,9 @@ enum SampleData {
     static var sessions: [ReflectionSession] {
         [
             currentSession,
-            ReflectionSession(title: "Seeking clarity", startedAt: daysAgo(1, hour: 20), endedAt: daysAgo(1, hour: 20).addingTimeInterval(1680), state: .completed, transcript: transcript, observations: observations, observationEvents: [], observationEngineVersion: ObservationEventEngine.engineVersion, biometrics: biometricWindow, voice: VoiceSignals(wordsPerMinute: 118, pauseCount: 0, hesitationMarkers: 4, durationSeconds: 1680)),
-            ReflectionSession(title: "Processing frustration", startedAt: daysAgo(2, hour: 10), endedAt: daysAgo(2, hour: 10).addingTimeInterval(1580), state: .completed, transcript: transcript, observations: observations, observationEvents: [], observationEngineVersion: ObservationEventEngine.engineVersion, biometrics: biometricWindow, voice: VoiceSignals(wordsPerMinute: 125, pauseCount: 0, hesitationMarkers: 5, durationSeconds: 1580)),
-            ReflectionSession(title: "Reflecting on relationships", startedAt: daysAgo(3, hour: 19), endedAt: daysAgo(3, hour: 19).addingTimeInterval(1620), state: .completed, transcript: transcript, observations: observations, observationEvents: [], observationEngineVersion: ObservationEventEngine.engineVersion, biometrics: biometricWindow, voice: VoiceSignals(wordsPerMinute: 111, pauseCount: 0, hesitationMarkers: 2, durationSeconds: 1620))
+            ReflectionSession(title: "Seeking clarity", startedAt: daysAgo(1, hour: 20), endedAt: daysAgo(1, hour: 20).addingTimeInterval(1680), state: .completed, transcript: transcript, observations: observations, observationEvents: [], dynamicsPatterns: [], observationEngineVersion: ObservationEventEngine.engineVersion, dynamicsEngineVersion: DynamicsEngine.engineVersion, biometrics: biometricWindow, voice: VoiceSignals(wordsPerMinute: 118, pauseCount: 0, hesitationMarkers: 4, durationSeconds: 1680)),
+            ReflectionSession(title: "Processing frustration", startedAt: daysAgo(2, hour: 10), endedAt: daysAgo(2, hour: 10).addingTimeInterval(1580), state: .completed, transcript: transcript, observations: observations, observationEvents: [], dynamicsPatterns: [], observationEngineVersion: ObservationEventEngine.engineVersion, dynamicsEngineVersion: DynamicsEngine.engineVersion, biometrics: biometricWindow, voice: VoiceSignals(wordsPerMinute: 125, pauseCount: 0, hesitationMarkers: 5, durationSeconds: 1580)),
+            ReflectionSession(title: "Reflecting on relationships", startedAt: daysAgo(3, hour: 19), endedAt: daysAgo(3, hour: 19).addingTimeInterval(1620), state: .completed, transcript: transcript, observations: observations, observationEvents: [], dynamicsPatterns: [], observationEngineVersion: ObservationEventEngine.engineVersion, dynamicsEngineVersion: DynamicsEngine.engineVersion, biometrics: biometricWindow, voice: VoiceSignals(wordsPerMinute: 111, pauseCount: 0, hesitationMarkers: 2, durationSeconds: 1620))
         ]
     }
 
@@ -93,4 +84,3 @@ enum SampleData {
         return Calendar.current.date(from: comps) ?? now
     }
 }
-
