@@ -58,6 +58,13 @@ enum ReflectionSummaryEngine {
             transcriptText.contains("lets go") ||
             transcriptText.contains("again")
 
+        let hasOutcomeConcern = eventKinds.contains(.outcomeConcern)
+        let hasVerificationAttempt = eventKinds.contains(.verificationAttempt)
+        let hasSelfMonitoring = eventKinds.contains(.selfMonitoring)
+        let hasRelief = eventKinds.contains(.relief)
+        let hasReorientation = eventKinds.contains(.reorientation)
+        let hasPlanning = eventKinds.contains(.planning)
+
         let hasFrustrationLanguage =
             transcriptText.contains("ugh") ||
             transcriptText.contains("oh boy") ||
@@ -68,6 +75,12 @@ enum ReflectionSummaryEngine {
 
         var keySignals: [String] = []
 
+        if hasOutcomeConcern { keySignals.append("Outcome concern") }
+        if hasVerificationAttempt { keySignals.append("Verification attempt") }
+        if hasSelfMonitoring { keySignals.append("Self-monitoring") }
+        if hasRelief { keySignals.append("Relief / reassurance") }
+        if hasReorientation { keySignals.append("Reorientation toward progress") }
+        if hasPlanning { keySignals.append("Planning") }
         if hasBreath { keySignals.append("Breath-related regulation cue") }
         if hasSpeechFriction { keySignals.append("Speech-construction friction") }
         if hasUncertainty { keySignals.append("Uncertainty or sense-making") }
@@ -84,6 +97,27 @@ enum ReflectionSummaryEngine {
                 keySignals: ["Limited signal"],
                 suggestedDirection: "Continue collecting reflections so patterns can be compared over time.",
                 confidence: .low
+            )
+        }
+
+
+        if hasOutcomeConcern && hasVerificationAttempt && hasRelief {
+            return ReflectionSummaryResult(
+                summary: "The reflection began with concern about a possible mistake, shifted into verification behavior, and ended with reassurance that the situation looked acceptable.",
+                observedPattern: "Outcome concern moved into checking and then reassurance.",
+                keySignals: keySignals,
+                suggestedDirection: "Note what was verified and whether the reassurance feels complete or temporary.",
+                confidence: .medium
+            )
+        }
+
+        if hasVerificationAttempt && hasSelfMonitoring {
+            return ReflectionSummaryResult(
+                summary: "The reflection included checking and self-monitoring, suggesting the speaker was actively verifying status or progress.",
+                observedPattern: "Verification and self-monitoring appeared together.",
+                keySignals: keySignals,
+                suggestedDirection: "Identify what evidence would be enough to stop checking and move forward.",
+                confidence: .medium
             )
         }
 
@@ -146,4 +180,5 @@ enum ReflectionSummaryEngine {
         )
     }
 }
+
 

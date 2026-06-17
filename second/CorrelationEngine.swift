@@ -18,6 +18,10 @@ enum CorrelationEngine {
         let regulation = events.matching(.regulationAttempt)
         let repetition = events.matching(.repetition)
         let falseStarts = events.matching(.falseStart)
+        let outcomeConcern = events.matching(.outcomeConcern)
+        let verificationAttempt = events.matching(.verificationAttempt)
+        let selfMonitoring = events.matching(.selfMonitoring)
+        let relief = events.matching(.relief)
 
         if !emotionSearch.isEmpty && (!selfCorrection.isEmpty || !qualification.isEmpty) {
             correlations.append(make(
@@ -107,6 +111,40 @@ enum CorrelationEngine {
             ))
         }
 
+
+        if !outcomeConcern.isEmpty && !verificationAttempt.isEmpty {
+            correlations.append(make(
+                title: "Concern + verification",
+                kind: .concernVerification,
+                summary: "Outcome concern appeared with verification behavior, suggesting the speaker was checking whether a feared problem had occurred.",
+                confidence: .medium,
+                events: outcomeConcern + verificationAttempt,
+                tags: ["concern", "verification", "checking"]
+            ))
+        }
+
+        if !verificationAttempt.isEmpty && !relief.isEmpty {
+            correlations.append(make(
+                title: "Verification + relief",
+                kind: .verificationRelief,
+                summary: "Verification behavior appeared with reassurance or relief language, suggesting a checking-to-resolution sequence.",
+                confidence: .medium,
+                events: verificationAttempt + relief,
+                tags: ["verification", "relief", "resolution"]
+            ))
+        }
+
+        if !selfMonitoring.isEmpty && !relief.isEmpty {
+            correlations.append(make(
+                title: "Self-monitoring + reassurance",
+                kind: .selfMonitoringReassurance,
+                summary: "Self-monitoring appeared with reassurance language, suggesting the speaker was tracking status and then accepting that the situation looked acceptable.",
+                confidence: .medium,
+                events: selfMonitoring + relief,
+                tags: ["self-monitoring", "reassurance", "status-check"]
+            ))
+        }
+
         return correlations
     }
 
@@ -149,4 +187,5 @@ private extension Array where Element == ObservationEvent {
         filter { $0.kind == kind }
     }
 }
+
 

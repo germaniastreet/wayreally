@@ -191,6 +191,8 @@ enum ObservationEventEngine {
             )
         }
 
+        events.append(contentsOf: CognitiveObservationDetector.detect(session: session))
+
         return events.sorted { $0.timestamp < $1.timestamp }
     }
 
@@ -242,6 +244,13 @@ enum ObservationEventEngine {
         case .qualificationLanguage: return "Qualification language"
         case .certaintyLanguage: return "Certainty language"
         case .emotionSearch: return "Emotion search"
+        case .outcomeConcern: return "Outcome concern"
+        case .verificationAttempt: return "Verification attempt"
+        case .selfMonitoring: return "Self-monitoring"
+        case .relief: return "Relief / reassurance"
+        case .reorientation: return "Reorientation toward progress"
+        case .planning: return "Planning"
+        case .decisionPoint: return "Decision point"
         }
     }
 
@@ -310,4 +319,5 @@ enum ObservationEventEngine {
         return repeated
     }
 }
+
 

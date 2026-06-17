@@ -10,6 +10,7 @@ enum SignalSource: String, Codable {
     case observationEngine
     case dynamicsEngine
     case correlationEngine
+    case derived
 }
 
 enum SignalQuality: String, Codable {
@@ -28,6 +29,7 @@ enum ReflectionState: String, Codable {
 enum ObservationCategory: String, Codable, CaseIterable {
     case language = "Language"
     case voice = "Voice"
+    case cognitive = "Cognitive"
     case behavior = "Behavior"
     case body = "Body"
     case environment = "Environment"
@@ -47,6 +49,14 @@ enum ObservationEventKind: String, Codable {
     case qualificationLanguage
     case certaintyLanguage
     case emotionSearch
+
+    case outcomeConcern
+    case verificationAttempt
+    case selfMonitoring
+    case relief
+    case reorientation
+    case planning
+    case decisionPoint
 }
 
 struct ObservationEvent: Identifiable, Codable {
@@ -75,6 +85,10 @@ enum DynamicsPatternKind: String, Codable {
     case stressRegulationCluster
     case breathRegulationMarker
     case reflectiveSenseMaking
+
+    case resolutionSeeking
+    case activeChecking
+    case unresolvedConcern
 }
 
 struct DynamicsPattern: Identifiable, Codable {
@@ -97,6 +111,10 @@ enum ObservationCorrelationKind: String, Codable {
     case speechFriction
     case uncertaintyWithQualification
     case breathAfterConcern
+
+    case concernVerification
+    case verificationRelief
+    case selfMonitoringReassurance
 }
 
 struct ObservationCorrelation: Identifiable, Codable {
@@ -239,4 +257,5 @@ struct ConversationDynamics {
     var interruptions: Int
     var dominanceIndex: Double
 }
+
 

@@ -20,6 +20,12 @@ enum DynamicsEngine {
         let questions = events.matching(.reflectiveQuestion)
         let pauses = events.matching(.pauseGap)
         let repetitions = events.matching(.repetition)
+        let outcomeConcern = events.matching(.outcomeConcern)
+        let verificationAttempt = events.matching(.verificationAttempt)
+        let selfMonitoring = events.matching(.selfMonitoring)
+        let relief = events.matching(.relief)
+        let reorientation = events.matching(.reorientation)
+        let planning = events.matching(.planning)
 
         if !emotionSearch.isEmpty && (!qualification.isEmpty || !selfCorrection.isEmpty || text.contains(" or ")) {
             patterns.append(pattern(
@@ -109,6 +115,51 @@ enum DynamicsEngine {
             ))
         }
 
+
+        if !outcomeConcern.isEmpty && !verificationAttempt.isEmpty && !relief.isEmpty {
+            patterns.append(pattern(
+                title: "Resolution seeking",
+                kind: .resolutionSeeking,
+                detail: "Concern, verification, and reassurance appeared together, suggesting a sequence of noticing a possible problem, checking it, and reaching some relief.",
+                confidence: .medium,
+                events: outcomeConcern + verificationAttempt + selfMonitoring + relief,
+                tags: ["concern", "verification", "relief", "resolution-seeking"]
+            ))
+        }
+
+        if !verificationAttempt.isEmpty && !selfMonitoring.isEmpty {
+            patterns.append(pattern(
+                title: "Active checking",
+                kind: .activeChecking,
+                detail: "Verification and self-monitoring appeared together, suggesting active checking of progress, output, or status.",
+                confidence: .medium,
+                events: verificationAttempt + selfMonitoring,
+                tags: ["checking", "self-monitoring", "verification"]
+            ))
+        }
+
+        if !outcomeConcern.isEmpty && relief.isEmpty {
+            patterns.append(pattern(
+                title: "Unresolved concern",
+                kind: .unresolvedConcern,
+                detail: "Outcome concern appeared without a clear reassurance signal in the same reflection.",
+                confidence: .low,
+                events: outcomeConcern,
+                tags: ["concern", "unresolved", "risk"]
+            ))
+        }
+
+        if !planning.isEmpty || !reorientation.isEmpty {
+            patterns.append(pattern(
+                title: "Forward orientation",
+                kind: .reflectiveSenseMaking,
+                detail: "The reflection included planning or reorientation language, suggesting movement toward a next step.",
+                confidence: .low,
+                events: planning + reorientation,
+                tags: ["planning", "forward-motion", "next-action"]
+            ))
+        }
+
         return patterns
     }
 
@@ -146,3 +197,4 @@ private extension Array where Element == ObservationEvent {
         filter { $0.kind == kind }
     }
 }
+
