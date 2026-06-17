@@ -1,14 +1,106 @@
 import SwiftUI
 
-struct CorrelationScreen: View { let session = SampleData.currentSession
-    var body: some View { NavigationStack { ZStack { SecondTheme.background.ignoresSafeArea(); ScrollView { VStack(spacing:16) { ScreenHeader(title:"Correlation", subtitle:"Conversation ↔ Physiology"); AppCard(title:"Correlation Timeline") { VStack(alignment:.leading, spacing:16) { Text("All signals aligned to conversation timeline").font(.caption).foregroundStyle(SecondTheme.secondaryText); SignalChartRow(label:"Heart Rate", value:"\(Int(session.biometrics.latestHeartRate))", values:session.biometrics.samples.compactMap{$0.heartRate}, color:SecondTheme.heartRate); SignalChartRow(label:"Respiration", value:String(format:"%.1f", session.biometrics.averageRespiration), values:session.biometrics.samples.compactMap{$0.respiration}, color:SecondTheme.respiration); SignalChartRow(label:"HRV", value:"\(Int(session.biometrics.averageHRV))", values:session.biometrics.samples.compactMap{$0.hrv}, color:SecondTheme.hrv) } }.padding(.horizontal); AppCard(title:"Correlation Summary") { HStack(spacing:12) { ScoreCard(title:"Heart Rate", value:"0.62", color:SecondTheme.heartRate, icon:"heart"); ScoreCard(title:"Respiration", value:"0.48", color:SecondTheme.respiration, icon:"lungs"); ScoreCard(title:"HRV", value:"-0.55", color:SecondTheme.hrv, icon:"waveform.path.ecg") }; Text("Correlations reflect associations, not cause and effect.").font(.caption).foregroundStyle(SecondTheme.secondaryText).padding(.top,6) }.padding(.horizontal); AppCard(title:"Key Moments") { VStack(spacing:12) { KeyMomentRow(time:"01:10", text:"They said: “Tell me more about that.”", detail:"You were listening", hr:"↓ 18 bpm", resp:"↓ 2.3 brpm", hrv:"↓ 12 ms"); Divider(); KeyMomentRow(time:"02:10", text:"You said: “It has been hard to stay focused.”", detail:"You were speaking", hr:"↑ 22 bpm", resp:"↑ 3.1 brpm", hrv:"↑ 18 ms") } }.padding(.horizontal) }.padding(.bottom,24) } } } }
+struct CorrelationScreen: View {
+    @EnvironmentObject private var store: ReflectionSessionStore
+
+    private var latestSession: ReflectionSession? {
+        store.activeSession ?? store.completedSessions.first
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                SecondTheme.background.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ScreenHeader(title: "Correlation", subtitle: "Observation relationships")
+
+                        if let session = latestSession {
+                            AppCard(title: "Latest Reflection") {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(session.title)
+                                        .font(.headline)
+
+                                    Text("\(session.timeRangeText) • \(session.durationText)")
+                                        .font(.caption)
+                                        .foregroundStyle(SecondTheme.secondaryText)
+
+                                    Text(CorrelationEngine.summary(session.observationCorrelations))
+                                        .font(.caption)
+                                        .foregroundStyle(SecondTheme.secondaryText)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(.horizontal)
+
+                            AppCard(title: "Correlation Engine") {
+                                VStack(spacing: 8) {
+                                    MetricRow(label: "Engine version", value: session.correlationEngineVersion)
+                                    MetricRow(label: "Correlations", value: "\(session.observationCorrelations.count)")
+                                    MetricRow(label: "Source events", value: "\(session.observationEvents.count)")
+                                }
+                            }
+                            .padding(.horizontal)
+
+                            if session.observationCorrelations.isEmpty {
+                                AppCard(title: "No Correlations Yet") {
+                                    Text("Record a reflection with multiple observation events. Correlations appear when events such as uncertainty, pause gaps, breath cues, self-correction, stress, or conflict occur together.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(SecondTheme.secondaryText)
+                                }
+                                .padding(.horizontal)
+                            } else {
+                                ForEach(session.observationCorrelations) { correlation in
+                                    AppCard(title: correlation.title) {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text(correlation.timestamp.displayTime)
+                                                .font(.caption)
+                                                .foregroundStyle(SecondTheme.secondaryText)
+
+                                            Text(correlation.summary)
+                                                .font(.subheadline)
+
+                                            MetricRow(label: "Confidence", value: correlation.confidence.rawValue.capitalized)
+                                            MetricRow(label: "Engine", value: correlation.engineVersion)
+
+                                            if !correlation.sourceEventTitles.isEmpty {
+                                                Text("Based on")
+                                                    .font(.caption)
+                                                    .bold()
+                                                    .padding(.top, 4)
+
+                                                ForEach(correlation.sourceEventTitles, id: \.self) { title in
+                                                    Text("• \(title)")
+                                                        .font(.caption)
+                                                        .foregroundStyle(SecondTheme.secondaryText)
+                                                }
+                                            }
+
+                                            if !correlation.tags.isEmpty {
+                                                Text("Tags: \(correlation.tags.joined(separator: ", "))")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(SecondTheme.secondaryText)
+                                                    .padding(.top, 4)
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            }
+                        } else {
+                            AppCard(title: "No Reflection Available") {
+                                Text("Create a reflection first. Correlations will appear after observation events are generated.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(SecondTheme.secondaryText)
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.bottom, 24)
+                }
+            }
+        }
+    }
 }
-struct SignalChartRow: View { let label:String; let value:String; let values:[Double]; let color:Color
-    var body: some View { HStack(spacing:12) { VStack(alignment:.leading) { Text(label).font(.caption); Text(value).font(.headline).foregroundStyle(color) }.frame(width:86, alignment:.leading); MiniLineChart(values:values,color:color) } }
-}
-struct ScoreCard: View { let title:String; let value:String; let color:Color; let icon:String
-    var body: some View { VStack(alignment:.leading, spacing:8) { Image(systemName:icon).foregroundStyle(color); Text(title).font(.caption).bold(); Text("vs session intensity").font(.caption2).foregroundStyle(SecondTheme.secondaryText); Text(value).font(.title3).bold().foregroundStyle(color); MiniLineChart(values:SampleData.biometricSamples.prefix(30).compactMap{$0.heartRate}, color:color).frame(height:28) }.padding(10).frame(maxWidth:.infinity, alignment:.leading).background(SecondTheme.background.opacity(0.5)).clipShape(RoundedRectangle(cornerRadius:14)) }
-}
-struct KeyMomentRow: View { let time:String; let text:String; let detail:String; let hr:String; let resp:String; let hrv:String
-    var body: some View { VStack(alignment:.leading, spacing:6) { HStack { Text(time).font(.caption).foregroundStyle(SecondTheme.secondaryText).frame(width:52, alignment:.leading); VStack(alignment:.leading) { Text(text).font(.subheadline).bold(); Text(detail).font(.caption).foregroundStyle(SecondTheme.secondaryText) } }; HStack { Text(hr).foregroundStyle(SecondTheme.heartRate); Text(resp).foregroundStyle(SecondTheme.respiration); Text(hrv).foregroundStyle(SecondTheme.hrv) }.font(.caption).padding(.leading,64) } }
-}
+

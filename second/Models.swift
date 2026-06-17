@@ -9,6 +9,7 @@ enum SignalSource: String, Codable {
     case acoustic
     case observationEngine
     case dynamicsEngine
+    case correlationEngine
 }
 
 enum SignalQuality: String, Codable {
@@ -51,8 +52,7 @@ enum ObservationEventKind: String, Codable {
 struct ObservationEvent: Identifiable, Codable {
     var id = UUID()
 
-    /// Internal source of truth.
-    /// Keep this as Date. Do not convert to String for storage.
+    /// Internal source of truth. Keep this as Date. Do not convert to String for storage.
     var timestamp: Date
 
     var kind: ObservationEventKind
@@ -88,12 +88,35 @@ struct DynamicsPattern: Identifiable, Codable {
     var engineVersion: String
 }
 
+enum ObservationCorrelationKind: String, Codable {
+    case emotionalClarification
+    case reflectiveProcessing
+    case possibleSelfRegulation
+    case conflictRegulation
+    case stressActivation
+    case speechFriction
+    case uncertaintyWithQualification
+    case breathAfterConcern
+}
+
+struct ObservationCorrelation: Identifiable, Codable {
+    var id = UUID()
+    var timestamp: Date
+    var title: String
+    var kind: ObservationCorrelationKind
+    var summary: String
+    var confidence: SignalQuality
+    var sourceEventIDs: [UUID]
+    var sourceEventTitles: [String]
+    var tags: [String]
+    var engineVersion: String
+}
+
 struct ReflectionSession: Identifiable, Codable {
     var id = UUID()
     var title: String
 
-    /// Internal source of truth.
-    /// Keep these as Date. Display format belongs in Date extension/UI only.
+    /// Internal source of truth. Keep these as Date. Display format belongs in Date extension/UI only.
     var startedAt: Date
     var endedAt: Date?
 
@@ -102,8 +125,10 @@ struct ReflectionSession: Identifiable, Codable {
     var observations: [Observation]
     var observationEvents: [ObservationEvent]
     var dynamicsPatterns: [DynamicsPattern]
+    var observationCorrelations: [ObservationCorrelation]
     var observationEngineVersion: String
     var dynamicsEngineVersion: String
+    var correlationEngineVersion: String
     var biometrics: BiometricWindow
     var voice: VoiceSignals
 
@@ -130,8 +155,7 @@ struct ReflectionSession: Identifiable, Codable {
 struct TranscriptEvent: Identifiable, Codable {
     var id = UUID()
 
-    /// Internal source of truth.
-    /// Keep this as Date. Do not convert to String for storage.
+    /// Internal source of truth. Keep this as Date. Do not convert to String for storage.
     var timestamp: Date
 
     var speaker: Speaker
@@ -147,8 +171,7 @@ enum Speaker: String, Codable {
 struct BiometricSample: Identifiable, Codable {
     var id = UUID()
 
-    /// Internal source of truth.
-    /// Keep this as Date. Do not convert to String for storage.
+    /// Internal source of truth. Keep this as Date. Do not convert to String for storage.
     var timestamp: Date
 
     var heartRate: Double?
@@ -216,3 +239,4 @@ struct ConversationDynamics {
     var interruptions: Int
     var dominanceIndex: Double
 }
+

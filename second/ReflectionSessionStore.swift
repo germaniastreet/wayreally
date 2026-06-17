@@ -30,8 +30,10 @@ final class ReflectionSessionStore: ObservableObject {
             observations: [],
             observationEvents: [],
             dynamicsPatterns: [],
+            observationCorrelations: [],
             observationEngineVersion: ObservationEventEngine.engineVersion,
             dynamicsEngineVersion: DynamicsEngine.engineVersion,
+            correlationEngineVersion: CorrelationEngine.engineVersion,
             biometrics: emptyWindow,
             voice: VoiceSignals(wordsPerMinute: 0, pauseCount: 0, hesitationMarkers: 0, durationSeconds: 0)
         )
@@ -43,9 +45,7 @@ final class ReflectionSessionStore: ObservableObject {
         let now = Date()
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmed.isEmpty else {
-            return
-        }
+        guard !trimmed.isEmpty else { return }
 
         if trimmed == lastTranscriptText {
             activeSession = session
@@ -79,12 +79,7 @@ final class ReflectionSessionStore: ObservableObject {
             session.transcript[lastIndex].timestamp = now
         } else {
             session.transcript.append(
-                TranscriptEvent(
-                    timestamp: now,
-                    speaker: .user,
-                    text: trimmed,
-                    source: .transcript
-                )
+                TranscriptEvent(timestamp: now, speaker: .user, text: trimmed, source: .transcript)
             )
         }
 
@@ -102,6 +97,7 @@ final class ReflectionSessionStore: ObservableObject {
         session.title = "Reflection at \(session.startedAt.displayTime)"
         session.observationEngineVersion = ObservationEventEngine.engineVersion
         session.dynamicsEngineVersion = DynamicsEngine.engineVersion
+        session.correlationEngineVersion = CorrelationEngine.engineVersion
 
         session.transcript = session.transcript.filter {
             !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -110,33 +106,43 @@ final class ReflectionSessionStore: ObservableObject {
         if session.transcript.isEmpty {
             if !lastTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 session.transcript.append(
-                    TranscriptEvent(
-                        timestamp: end,
-                        speaker: .user,
-                        text: lastTranscriptText,
-                        source: .transcript
-                    )
+                    TranscriptEvent(timestamp: end, speaker: .user, text: lastTranscriptText, source: .transcript)
                 )
             } else {
                 session.transcript.append(
-                    TranscriptEvent(
-                        timestamp: session.startedAt,
-                        speaker: .user,
-                        text: "No speech was captured for this reflection.",
-                        source: .userMarker
-                    )
+                    TranscriptEvent(timestamp: session.startedAt, speaker: .user, text: "No speech was captured for this reflection.", source: .userMarker)
                 )
             }
         }
 
         session.biometrics = BiometricWindow(queryStart: session.startedAt, queryEnd: end, samples: [], quality: .unavailable)
+
         session.observationEvents = ObservationEventEngine.enrich(session: session)
         session.dynamicsPatterns = DynamicsEngine.analyze(session: session)
+        session.observationCorrelations = CorrelationEngine.analyze(session: session)
 
         let analysis = ReflectionAnalyzer.analyze(session: session)
+        let summary = ReflectionSummaryEngine.analyze(session: session)
+        let trajectory = EmotionalTrajectoryEngine.analyze(session: session)
+
+        let enhancedSummary: String
+        if trajectory.title != "No clear trajectory" {
+            enhancedSummary = "\(summary.summary) Emotional trajectory: \(trajectory.detail)"
+        } else {
+            enhancedSummary = summary.summary
+        }
 
         session.observations = [
-            Observation(title: "Observed Pattern", detail: analysis.observedPattern, confidence: analysis.confidence),
+            Observation(title: "Reflection Summary", detail: enhancedSummary, confidence: trajectory.confidence),
+            Observation(title: "Emotional Trajectory", detail: trajectory.detail, confidence: trajectory.confidence),
+            Observation(title: "Trajectory Title", detail: trajectory.title, confidence: trajectory.confidence),
+            Observation(title: "Trajectory Movement", detail: trajectory.movement, confidence: trajectory.confidence),
+            Observation(title: "Trajectory Start", detail: trajectory.startState, confidence: trajectory.confidence),
+            Observation(title: "Trajectory End", detail: trajectory.endState, confidence: trajectory.confidence),
+            Observation(title: "Trajectory Phrases", detail: trajectory.keyPhrases.joined(separator: ", "), confidence: trajectory.confidence),
+            Observation(title: "Observed Pattern", detail: summary.observedPattern, confidence: summary.confidence),
+            Observation(title: "Suggested Direction", detail: summary.suggestedDirection, confidence: summary.confidence),
+            Observation(title: "Key Signals", detail: summary.keySignals.joined(separator: ", "), confidence: summary.confidence),
             Observation(title: "Observatory Note", detail: analysis.observatoryNote, confidence: analysis.confidence),
             Observation(title: "Emotional Tone", detail: analysis.emotionalTone, confidence: analysis.confidence),
             Observation(title: "Cognitive Load", detail: analysis.cognitiveLoad, confidence: analysis.confidence),
@@ -162,3 +168,4 @@ final class ReflectionSessionStore: ObservableObject {
         lastTranscriptText = ""
     }
 }
+
