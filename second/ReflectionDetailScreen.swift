@@ -14,54 +14,28 @@ struct ReflectionDetailScreen: View {
                         subtitle: "\(session.timeRangeText) • \(session.durationText)"
                     )
 
+                    AppCard(title: "Summary") {
+                        summaryView
+                    }
+                    .padding(.horizontal)
+
+                    AppCard(title: "Reflection Arc") {
+                        arcView
+                    }
+                    .padding(.horizontal)
+
                     AppCard(title: "Transcript") {
                         transcriptView
                     }
                     .padding(.horizontal)
 
-                    AppCard(title: "Reflection Summary") {
-                        reflectionSummaryView
+                    AppCard(title: "Evidence", startsExpanded: false) {
+                        evidenceView
                     }
                     .padding(.horizontal)
 
-                    AppCard(title: "Emotional Trajectory") {
-                        emotionalTrajectoryView
-                    }
-                    .padding(.horizontal)
-
-                    AppCard(title: "Observed Pattern") {
-                        Text(observationDetail("Observed Pattern"))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.horizontal)
-
-                    AppCard(title: "Reflection Dynamics") {
-                        reflectionDynamicsView
-                    }
-                    .padding(.horizontal)
-
-                    AppCard(title: "Observation Correlations") {
-                        observationCorrelationsView
-                    }
-                    .padding(.horizontal)
-
-                    AppCard(title: "Observation Events", startsExpanded: true) {
-                        observationEventsView
-                    }
-                    .padding(.horizontal)
-
-                    AppCard(title: "Cognition Signals") {
-                        cognitionSignalsView
-                    }
-                    .padding(.horizontal)
-
-                    AppCard(title: "Session State") {
-                        sessionStateView
-                    }
-                    .padding(.horizontal)
-
-                    AppCard(title: "Voice Signals") {
-                        voiceSignalsView
+                    AppCard(title: "Diagnostics", startsExpanded: false) {
+                        diagnosticsView
                     }
                     .padding(.horizontal)
                 }
@@ -70,6 +44,51 @@ struct ReflectionDetailScreen: View {
         }
         .navigationTitle("Reflection")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var summaryView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(primaryInsight)
+                .font(.headline)
+
+            Text(observationDetail("Reflection Summary"))
+                .font(.subheadline)
+
+            if observationDetail("Suggested Direction") != "Pending" {
+                Text("Suggested direction: \(observationDetail("Suggested Direction"))")
+                    .font(.caption)
+                    .foregroundStyle(SecondTheme.secondaryText)
+            }
+
+            if observationDetail("Key Signals") != "Pending" {
+                Text("Key signals: \(observationDetail("Key Signals"))")
+                    .font(.caption2)
+                    .foregroundStyle(SecondTheme.secondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var arcView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(observationDetail("Arc Title"))
+                .font(.title3)
+                .bold()
+
+            MetricRow(label: "Start", value: observationDetail("Arc Start"))
+            MetricRow(label: "Middle", value: observationDetail("Arc Middle"))
+            MetricRow(label: "End", value: observationDetail("Arc End"))
+
+            Text(observationDetail("Reflection Arc"))
+                .font(.caption)
+                .foregroundStyle(SecondTheme.secondaryText)
+
+            if observationDetail("Arc Key Events") != "Pending" && !observationDetail("Arc Key Events").isEmpty {
+                Text("Evidence: \(observationDetail("Arc Key Events"))")
+                    .font(.caption2)
+                    .foregroundStyle(SecondTheme.secondaryText)
+            }
+        }
     }
 
     private var transcriptView: some View {
@@ -99,26 +118,9 @@ struct ReflectionDetailScreen: View {
         }
     }
 
-    private var reflectionSummaryView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(observationDetail("Reflection Summary"))
-                .font(.subheadline)
-
-            if observationDetail("Key Signals") != "Pending" {
-                Text("Key signals: \(observationDetail("Key Signals"))")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-            }
-
-            Text("Suggested direction: \(observationDetail("Suggested Direction"))")
-                .font(.caption)
-                .foregroundStyle(SecondTheme.secondaryText)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var emotionalTrajectoryView: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var evidenceView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionTitle("Emotional Trajectory")
             Text(observationDetail("Trajectory Title"))
                 .font(.subheadline)
                 .bold()
@@ -131,110 +133,11 @@ struct ReflectionDetailScreen: View {
             MetricRow(label: "Start", value: observationDetail("Trajectory Start"))
             MetricRow(label: "End", value: observationDetail("Trajectory End"))
 
-            if observationDetail("Trajectory Phrases") != "Pending" {
-                Text("Key phrases: \(observationDetail("Trajectory Phrases"))")
-                    .font(.caption2)
-                    .foregroundStyle(SecondTheme.secondaryText)
-            }
+            Divider()
 
-            Text("Engine version: \(EmotionalTrajectoryEngine.engineVersion)")
-                .font(.caption2)
-                .foregroundStyle(SecondTheme.secondaryText)
-        }
-    }
-
-    private var reflectionDynamicsView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(DynamicsEngine.summary(session.dynamicsPatterns))
-                .font(.caption)
-                .foregroundStyle(SecondTheme.secondaryText)
-
-            Text("Engine version: \(session.dynamicsEngineVersion)")
-                .font(.caption2)
-                .foregroundStyle(SecondTheme.secondaryText)
-
-            if session.dynamicsPatterns.isEmpty {
-                Text("No dynamics patterns detected.")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-            } else {
-                ForEach(session.dynamicsPatterns) { pattern in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(pattern.title)
-                            .font(.subheadline)
-                            .bold()
-
-                        Text(pattern.detail)
-                            .font(.caption)
-                            .foregroundStyle(SecondTheme.secondaryText)
-
-                        if !pattern.tags.isEmpty {
-                            Text("Tags: \(pattern.tags.joined(separator: ", "))")
-                                .font(.caption2)
-                                .foregroundStyle(SecondTheme.secondaryText)
-                        }
-
-                        Text("Confidence: \(pattern.confidence.rawValue.capitalized) • Engine \(pattern.engineVersion)")
-                            .font(.caption2)
-                            .foregroundStyle(SecondTheme.secondaryText)
-                    }
-
-                    Divider()
-                }
-            }
-        }
-    }
-
-    private var observationCorrelationsView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(CorrelationEngine.summary(session.observationCorrelations))
-                .font(.caption)
-                .foregroundStyle(SecondTheme.secondaryText)
-
-            Text("Engine version: \(session.correlationEngineVersion)")
-                .font(.caption2)
-                .foregroundStyle(SecondTheme.secondaryText)
-
-            if session.observationCorrelations.isEmpty {
-                Text("No correlations detected.")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-            } else {
-                ForEach(session.observationCorrelations) { correlation in
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("\(correlation.timestamp.displayTime) • \(correlation.title)")
-                            .font(.subheadline)
-                            .bold()
-
-                        Text(correlation.summary)
-                            .font(.caption)
-                            .foregroundStyle(SecondTheme.secondaryText)
-
-                        if !correlation.sourceEventTitles.isEmpty {
-                            Text("Based on: \(correlation.sourceEventTitles.joined(separator: ", "))")
-                                .font(.caption2)
-                                .foregroundStyle(SecondTheme.secondaryText)
-                        }
-
-                        Text("Confidence: \(correlation.confidence.rawValue.capitalized) • Engine \(correlation.engineVersion)")
-                            .font(.caption2)
-                            .foregroundStyle(SecondTheme.secondaryText)
-                    }
-
-                    Divider()
-                }
-            }
-        }
-    }
-
-    private var observationEventsView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("Observation Events")
             Text(ObservationEventEngine.eventSummary(session.observationEvents))
                 .font(.caption)
-                .foregroundStyle(SecondTheme.secondaryText)
-
-            Text("Engine version: \(session.observationEngineVersion)")
-                .font(.caption2)
                 .foregroundStyle(SecondTheme.secondaryText)
 
             if session.observationEvents.isEmpty {
@@ -252,71 +155,125 @@ struct ReflectionDetailScreen: View {
                             .font(.caption)
                             .foregroundStyle(SecondTheme.secondaryText)
 
-                        ForEach(group.events) { event in
-                            VStack(alignment: .leading, spacing: 4) {
+                        ForEach(group.events.prefix(5)) { event in
+                            VStack(alignment: .leading, spacing: 3) {
                                 Text("\(event.timestamp.shortTimeWithSeconds) • \(event.title)")
-                                    .font(.subheadline)
+                                    .font(.caption)
                                     .bold()
 
                                 Text(event.detail)
-                                    .font(.caption)
+                                    .font(.caption2)
                                     .foregroundStyle(SecondTheme.secondaryText)
 
                                 if let related = event.relatedText {
                                     Text("Related: \(related)")
                                         .font(.caption2)
                                         .foregroundStyle(SecondTheme.secondaryText)
+                                        .lineLimit(2)
                                 }
-
-                                if !event.tags.isEmpty {
-                                    Text("Tags: \(event.tags.joined(separator: ", "))")
-                                        .font(.caption2)
-                                        .foregroundStyle(SecondTheme.secondaryText)
-                                }
-
-                                Text("Confidence: \(event.confidence.rawValue.capitalized) • Engine \(event.engineVersion)")
-                                    .font(.caption2)
-                                    .foregroundStyle(SecondTheme.secondaryText)
                             }
-                            .padding(.top, 4)
                         }
                     }
 
                     Divider()
                 }
             }
+
+            sectionTitle("Dynamics")
+            Text(DynamicsEngine.summary(session.dynamicsPatterns))
+                .font(.caption)
+                .foregroundStyle(SecondTheme.secondaryText)
+
+            ForEach(session.dynamicsPatterns) { pattern in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(pattern.title)
+                        .font(.caption)
+                        .bold()
+
+                    Text(pattern.detail)
+                        .font(.caption2)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                }
+            }
+
+            Divider()
+
+            sectionTitle("Correlations")
+            Text(CorrelationEngine.summary(session.observationCorrelations))
+                .font(.caption)
+                .foregroundStyle(SecondTheme.secondaryText)
+
+            ForEach(session.observationCorrelations) { correlation in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(correlation.title)
+                        .font(.caption)
+                        .bold()
+
+                    Text(correlation.summary)
+                        .font(.caption2)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                }
+            }
         }
     }
 
-    private var cognitionSignalsView: some View {
-        VStack(spacing: 8) {
-            MetricRow(label: "Emotional tone", value: observationDetail("Emotional Tone"))
-            MetricRow(label: "Cognitive load", value: observationDetail("Cognitive Load"))
-            MetricRow(label: "Focus signal", value: observationDetail("Focus Signal"))
-            MetricRow(label: "Confidence", value: session.observations.first(where: { $0.title == "Observed Pattern" })?.confidence.rawValue.capitalized ?? "Unavailable")
-        }
-    }
-
-    private var sessionStateView: some View {
+    private var diagnosticsView: some View {
         VStack(spacing: 8) {
             MetricRow(label: "State", value: session.state.rawValue.capitalized)
             MetricRow(label: "Boundary", value: session.endedAt == nil ? "Open" : "Closed")
             MetricRow(label: "Duration", value: session.durationText)
+            MetricRow(label: "Speech rate", value: session.voice.wordsPerMinute == 0 ? "Pending" : "\(session.voice.wordsPerMinute) WPM")
+            MetricRow(label: "Pause gaps", value: session.voice.pauseCount == 0 ? "None detected" : "\(session.voice.pauseCount)")
+            MetricRow(label: "Hesitation markers", value: session.voice.hesitationMarkers == 0 ? "None detected" : "\(session.voice.hesitationMarkers)")
             MetricRow(label: "Observation engine", value: session.observationEngineVersion)
             MetricRow(label: "Dynamics engine", value: session.dynamicsEngineVersion)
             MetricRow(label: "Correlation engine", value: session.correlationEngineVersion)
             MetricRow(label: "Summary engine", value: ReflectionSummaryEngine.engineVersion)
             MetricRow(label: "Trajectory engine", value: EmotionalTrajectoryEngine.engineVersion)
+            MetricRow(label: "Arc engine", value: ReflectionArcEngine.engineVersion)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                sectionTitle("Body Signals")
+
+                Text("Body signals from \(session.biometrics.queryStart.shortTimeWithSeconds)–\(session.biometrics.queryEnd.shortTimeWithSeconds)")
+                    .font(.caption)
+                    .foregroundStyle(SecondTheme.secondaryText)
+
+                Text("No biometric samples attached to this session yet. Watch and HealthKit will be connected in a later build.")
+                    .font(.caption)
+                    .foregroundStyle(SecondTheme.secondaryText)
+
+                MetricRow(label: "Data quality", value: session.biometrics.quality.rawValue.capitalized)
+            }
         }
     }
 
-    private var voiceSignalsView: some View {
-        VStack(spacing: 8) {
-            MetricRow(label: "Speech rate", value: session.voice.wordsPerMinute == 0 ? "Pending" : "\(session.voice.wordsPerMinute) WPM")
-            MetricRow(label: "Pause gaps", value: session.voice.pauseCount == 0 ? "None detected" : "\(session.voice.pauseCount)")
-            MetricRow(label: "Hesitation markers", value: session.voice.hesitationMarkers == 0 ? "None detected" : "\(session.voice.hesitationMarkers)")
-            MetricRow(label: "Duration", value: session.durationText)
+    private var primaryInsight: String {
+        let arcTitle = observationDetail("Arc Title")
+        if arcTitle != "Pending" && arcTitle != "No clear arc" {
+            return arcTitle
         }
+
+        let trajectoryTitle = observationDetail("Trajectory Title")
+        if trajectoryTitle != "Pending" && trajectoryTitle != "No clear trajectory" {
+            return trajectoryTitle
+        }
+
+        let observedPattern = observationDetail("Observed Pattern")
+        if observedPattern != "Pending" {
+            return observedPattern
+        }
+
+        return "No clear pattern detected yet."
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.subheadline)
+            .bold()
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func observationDetail(_ title: String) -> String {

@@ -124,16 +124,26 @@ final class ReflectionSessionStore: ObservableObject {
         let analysis = ReflectionAnalyzer.analyze(session: session)
         let summary = ReflectionSummaryEngine.analyze(session: session)
         let trajectory = EmotionalTrajectoryEngine.analyze(session: session)
+        let arc = ReflectionArcEngine.analyze(session: session)
 
         let enhancedSummary: String
-        if trajectory.title != "No clear trajectory" {
+        if arc.title != "No clear arc" {
+            enhancedSummary = "\(summary.summary) Reflection arc: \(arc.detail)"
+        } else if trajectory.title != "No clear trajectory" {
             enhancedSummary = "\(summary.summary) Emotional trajectory: \(trajectory.detail)"
         } else {
             enhancedSummary = summary.summary
         }
 
         session.observations = [
-            Observation(title: "Reflection Summary", detail: enhancedSummary, confidence: trajectory.confidence),
+            Observation(title: "Reflection Summary", detail: enhancedSummary, confidence: summary.confidence),
+            Observation(title: "Reflection Arc", detail: arc.detail, confidence: arc.confidence),
+            Observation(title: "Arc Title", detail: arc.title, confidence: arc.confidence),
+            Observation(title: "Arc Sequence", detail: arc.sequence, confidence: arc.confidence),
+            Observation(title: "Arc Start", detail: arc.startPhase, confidence: arc.confidence),
+            Observation(title: "Arc Middle", detail: arc.middlePhase, confidence: arc.confidence),
+            Observation(title: "Arc End", detail: arc.endPhase, confidence: arc.confidence),
+            Observation(title: "Arc Key Events", detail: arc.keyEvents.joined(separator: ", "), confidence: arc.confidence),
             Observation(title: "Emotional Trajectory", detail: trajectory.detail, confidence: trajectory.confidence),
             Observation(title: "Trajectory Title", detail: trajectory.title, confidence: trajectory.confidence),
             Observation(title: "Trajectory Movement", detail: trajectory.movement, confidence: trajectory.confidence),

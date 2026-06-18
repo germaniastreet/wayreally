@@ -6,7 +6,9 @@ struct ObservatoryScreen: View {
     @StateObject private var speechManager = SpeechRecognitionManager()
     @State private var timerTick = Date()
 
-    private var displaySession: ReflectionSession? { store.activeSession }
+    private var displaySession: ReflectionSession? {
+        store.activeSession
+    }
 
     var body: some View {
         NavigationStack {
@@ -28,7 +30,10 @@ struct ObservatoryScreen: View {
     private func activeSessionView(_ session: ReflectionSession) -> some View {
         ScrollView {
             VStack(spacing: 16) {
-                ScreenHeader(title: "second", subtitle: store.isRecording ? "Recording Reflection" : "Live Reflection")
+                ScreenHeader(
+                    title: "second",
+                    subtitle: store.isRecording ? "Recording Reflection" : "Reflection Complete"
+                )
 
                 Text("\(session.timeRangeText) • \(durationText)")
                     .font(.caption)
@@ -37,57 +42,193 @@ struct ObservatoryScreen: View {
                     .padding(.horizontal)
 
                 lifecycleControls
-                transcriptCard(session)
 
-                if !store.isRecording {
-                    summaryCard(session)
-                    trajectoryCard(session)
+                if store.isRecording {
+                    liveTranscriptCard(session)
+                } else {
+                    whatsGoingOnCard(session)
+                    reflectionArcCard(session)
+                    suggestedDirectionCard(session)
+                    evidenceCard(session)
+                    diagnosticsCard(session)
                 }
-
-                AppCard(title: "Observed Pattern") {
-                    Text(observationDetail(session, title: "Observed Pattern") == "Pending" ? "No observed pattern yet. Stop the reflection to generate the first observation." : observationDetail(session, title: "Observed Pattern"))
-                        .font(.subheadline)
-                        .foregroundStyle(SecondTheme.primaryText)
-                }
-                .padding(.horizontal)
-
-                dynamicsCard(session)
-                correlationsCard(session)
-                observationEventsCard(session)
-                cognitionCard(session)
-                voiceCard(session)
-                bodyCard(session)
-                noteCard(session)
             }
             .padding(.bottom, 24)
         }
     }
 
-    private func transcriptCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Live Reflection Transcript") {
-            VStack(alignment: .leading, spacing: 14) {
-                if session.transcript.isEmpty {
-                    Text(store.isRecording ? "Listening..." : "No transcript captured.")
-                        .font(.subheadline)
+    private func whatsGoingOnCard(_ session: ReflectionSession) -> some View {
+        AppCard(title: "What's Going On") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(primaryInsight(session))
+                    .font(.headline)
+                    .foregroundStyle(SecondTheme.primaryText)
+
+                Text(observationDetail(session, title: "Reflection Summary"))
+                    .font(.subheadline)
+                    .foregroundStyle(SecondTheme.primaryText)
+
+                if observationDetail(session, title: "Key Signals") != "Pending" {
+                    Text("Key signals: \(observationDetail(session, title: "Key Signals"))")
+                        .font(.caption)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal)
+    }
+
+    private func reflectionArcCard(_ session: ReflectionSession) -> some View {
+        AppCard(title: "Reflection Arc") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(observationDetail(session, title: "Arc Title"))
+                    .font(.title3)
+                    .bold()
+
+                MetricRow(label: "Start", value: observationDetail(session, title: "Arc Start"))
+                MetricRow(label: "Middle", value: observationDetail(session, title: "Arc Middle"))
+                MetricRow(label: "End", value: observationDetail(session, title: "Arc End"))
+
+                Text(observationDetail(session, title: "Reflection Arc"))
+                    .font(.caption)
+                    .foregroundStyle(SecondTheme.secondaryText)
+
+                let keyEvents = observationDetail(session, title: "Arc Key Events")
+                if keyEvents != "Pending" && !keyEvents.isEmpty {
+                    Text("Evidence: \(keyEvents)")
+                        .font(.caption2)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private func suggestedDirectionCard(_ session: ReflectionSession) -> some View {
+        AppCard(title: "Suggested Direction") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(observationDetail(session, title: "Suggested Direction"))
+                    .font(.subheadline)
+
+                Text("Observations are associations, not diagnoses.")
+                    .font(.caption)
+                    .foregroundStyle(SecondTheme.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal)
+    }
+
+    private func evidenceCard(_ session: ReflectionSession) -> some View {
+        AppCard(title: "Evidence", startsExpanded: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                evidenceSectionTitle("Transcript")
+                transcriptView(session)
+
+                Divider()
+
+                evidenceSectionTitle("Observation Events")
+                Text(ObservationEventEngine.eventSummary(session.observationEvents))
+                    .font(.caption)
+                    .foregroundStyle(SecondTheme.secondaryText)
+
+                if session.observationEvents.isEmpty {
+                    Text("No micro-observation events recorded.")
+                        .font(.caption)
                         .foregroundStyle(SecondTheme.secondaryText)
                 } else {
-                    ForEach(session.transcript) { event in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text(event.timestamp.shortTimeWithSeconds)
-                                .font(.caption2)
-                                .foregroundStyle(SecondTheme.secondaryText)
-                                .frame(width: 78, alignment: .leading)
-
-                            Text(event.speaker.rawValue)
-                                .font(.caption)
-                                .bold()
-                                .frame(width: 38, alignment: .leading)
-
-                            Text(event.text)
+                    ForEach(ObservationEventEngine.groupedEvents(session.observationEvents), id: \.category) { group in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("\(group.category.rawValue) (\(group.events.count))")
                                 .font(.subheadline)
+                                .bold()
+
+                            Text(ObservationEventEngine.categorySummary(group.category, events: group.events))
+                                .font(.caption)
+                                .foregroundStyle(SecondTheme.secondaryText)
+
+                            ForEach(group.events.prefix(3)) { event in
+                                Text("• \(event.title)")
+                                    .font(.caption)
+                                    .foregroundStyle(SecondTheme.secondaryText)
+                            }
                         }
                     }
                 }
+
+                Divider()
+
+                evidenceSectionTitle("Dynamics")
+                Text(DynamicsEngine.summary(session.dynamicsPatterns))
+                    .font(.caption)
+                    .foregroundStyle(SecondTheme.secondaryText)
+
+                ForEach(session.dynamicsPatterns.prefix(3)) { pattern in
+                    Text("• \(pattern.title)")
+                        .font(.caption)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                }
+
+                Divider()
+
+                evidenceSectionTitle("Correlations")
+                Text(CorrelationEngine.summary(session.observationCorrelations))
+                    .font(.caption)
+                    .foregroundStyle(SecondTheme.secondaryText)
+
+                ForEach(session.observationCorrelations.prefix(3)) { correlation in
+                    Text("• \(correlation.title)")
+                        .font(.caption)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private func diagnosticsCard(_ session: ReflectionSession) -> some View {
+        AppCard(title: "Diagnostics", startsExpanded: false) {
+            VStack(spacing: 8) {
+                MetricRow(label: "Session state", value: session.state.rawValue.capitalized)
+                MetricRow(label: "Boundary", value: session.endedAt == nil ? "Open" : "Closed")
+                MetricRow(label: "Duration", value: session.durationText)
+                MetricRow(label: "Speech rate", value: session.voice.wordsPerMinute == 0 ? "Pending" : "\(session.voice.wordsPerMinute) WPM")
+                MetricRow(label: "Pause gaps", value: session.voice.pauseCount == 0 ? "None detected" : "\(session.voice.pauseCount)")
+                MetricRow(label: "Hesitation markers", value: session.voice.hesitationMarkers == 0 ? "None detected" : "\(session.voice.hesitationMarkers)")
+                MetricRow(label: "Observation engine", value: session.observationEngineVersion)
+                MetricRow(label: "Dynamics engine", value: session.dynamicsEngineVersion)
+                MetricRow(label: "Correlation engine", value: session.correlationEngineVersion)
+                MetricRow(label: "Summary engine", value: ReflectionSummaryEngine.engineVersion)
+                MetricRow(label: "Trajectory engine", value: EmotionalTrajectoryEngine.engineVersion)
+                MetricRow(label: "Arc engine", value: ReflectionArcEngine.engineVersion)
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Body Signals")
+                        .font(.subheadline)
+                        .bold()
+
+                    Text("Body signals from \(session.biometrics.queryStart.shortTimeWithSeconds)–\(session.biometrics.queryEnd.shortTimeWithSeconds)")
+                        .font(.caption)
+                        .foregroundStyle(SecondTheme.secondaryText)
+
+                    Text("No biometric samples attached to this session yet. Watch and HealthKit will be connected in a later build.")
+                        .font(.caption)
+                        .foregroundStyle(SecondTheme.secondaryText)
+
+                    MetricRow(label: "Data quality", value: session.biometrics.quality.rawValue.capitalized)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private func liveTranscriptCard(_ session: ReflectionSession) -> some View {
+        AppCard(title: "Live Reflection") {
+            VStack(alignment: .leading, spacing: 14) {
+                transcriptView(session)
 
                 Text(speechManager.statusMessage)
                     .font(.caption)
@@ -97,244 +238,57 @@ struct ObservatoryScreen: View {
         .padding(.horizontal)
     }
 
-    private func summaryCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Reflection Summary") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(observationDetail(session, title: "Reflection Summary"))
+    private func transcriptView(_ session: ReflectionSession) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if session.transcript.isEmpty {
+                Text(store.isRecording ? "Listening..." : "No transcript captured.")
                     .font(.subheadline)
-
-                if observationDetail(session, title: "Key Signals") != "Pending" {
-                    Text("Key signals: \(observationDetail(session, title: "Key Signals"))")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
-                }
-
-                Text("Suggested direction: \(observationDetail(session, title: "Suggested Direction"))")
-                    .font(.caption)
                     .foregroundStyle(SecondTheme.secondaryText)
-            }
-        }
-        .padding(.horizontal)
-    }
+            } else {
+                ForEach(session.transcript) { event in
+                    HStack(alignment: .top, spacing: 12) {
+                        Text(event.timestamp.shortTimeWithSeconds)
+                            .font(.caption2)
+                            .foregroundStyle(SecondTheme.secondaryText)
+                            .frame(width: 78, alignment: .leading)
 
-    private func trajectoryCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Emotional Trajectory") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(observationDetail(session, title: "Trajectory Title"))
-                    .font(.subheadline)
-                    .bold()
+                        Text(event.speaker.rawValue)
+                            .font(.caption)
+                            .bold()
+                            .frame(width: 38, alignment: .leading)
 
-                Text(observationDetail(session, title: "Emotional Trajectory"))
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                MetricRow(label: "Movement", value: observationDetail(session, title: "Trajectory Movement"))
-                MetricRow(label: "Start", value: observationDetail(session, title: "Trajectory Start"))
-                MetricRow(label: "End", value: observationDetail(session, title: "Trajectory End"))
-
-                let phrases = observationDetail(session, title: "Trajectory Phrases")
-                if phrases != "Pending" && !phrases.isEmpty {
-                    Text("Key phrases: \(phrases)")
-                        .font(.caption2)
-                        .foregroundStyle(SecondTheme.secondaryText)
-                }
-
-                Text("Engine version: \(EmotionalTrajectoryEngine.engineVersion)")
-                    .font(.caption2)
-                    .foregroundStyle(SecondTheme.secondaryText)
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    private func dynamicsCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Reflection Dynamics") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(DynamicsEngine.summary(session.dynamicsPatterns))
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                Text("Engine version: \(session.dynamicsEngineVersion)")
-                    .font(.caption2)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                if session.dynamicsPatterns.isEmpty {
-                    Text("No dynamics patterns detected yet.")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
-                } else {
-                    ForEach(session.dynamicsPatterns.prefix(3)) { pattern in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(pattern.title)
-                                .font(.subheadline)
-                                .bold()
-
-                            Text(pattern.detail)
-                                .font(.caption)
-                                .foregroundStyle(SecondTheme.secondaryText)
-
-                            Text("Confidence: \(pattern.confidence.rawValue.capitalized)")
-                                .font(.caption2)
-                                .foregroundStyle(SecondTheme.secondaryText)
-                        }
-
-                        Divider()
+                        Text(event.text)
+                            .font(.subheadline)
                     }
                 }
             }
         }
-        .padding(.horizontal)
     }
 
-    private func correlationsCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Observation Correlations") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(CorrelationEngine.summary(session.observationCorrelations))
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                Text("Engine version: \(session.correlationEngineVersion)")
-                    .font(.caption2)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                if session.observationCorrelations.isEmpty {
-                    Text("No correlations detected yet.")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
-                } else {
-                    ForEach(session.observationCorrelations.prefix(3)) { correlation in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(correlation.title)
-                                .font(.subheadline)
-                                .bold()
-
-                            Text(correlation.summary)
-                                .font(.caption)
-                                .foregroundStyle(SecondTheme.secondaryText)
-
-                            Text("Confidence: \(correlation.confidence.rawValue.capitalized)")
-                                .font(.caption2)
-                                .foregroundStyle(SecondTheme.secondaryText)
-                        }
-
-                        Divider()
-                    }
-                }
-            }
-        }
-        .padding(.horizontal)
+    private func evidenceSectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.subheadline)
+            .bold()
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func observationEventsCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Observation Events", startsExpanded: false) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(ObservationEventEngine.eventSummary(session.observationEvents))
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                Text("Engine version: \(session.observationEngineVersion)")
-                    .font(.caption2)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                if session.observationEvents.isEmpty {
-                    Text("No micro-observation events recorded yet.")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
-                } else {
-                    ForEach(ObservationEventEngine.groupedEvents(session.observationEvents), id: \.category) { group in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("\(group.category.rawValue) (\(group.events.count))")
-                                .font(.subheadline)
-                                .bold()
-
-                            Text(ObservationEventEngine.categorySummary(group.category, events: group.events))
-                                .font(.caption)
-                                .foregroundStyle(SecondTheme.secondaryText)
-
-                            ForEach(group.events.prefix(4)) { event in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(event.timestamp.shortTimeWithSeconds) • \(event.title)")
-                                        .font(.caption)
-                                        .bold()
-
-                                    Text(event.detail)
-                                        .font(.caption2)
-                                        .foregroundStyle(SecondTheme.secondaryText)
-
-                                    if let related = event.relatedText {
-                                        Text("Related: \(related)")
-                                            .font(.caption2)
-                                            .foregroundStyle(SecondTheme.secondaryText)
-                                            .lineLimit(2)
-                                    }
-                                }
-                                .padding(.top, 3)
-                            }
-                        }
-
-                        Divider()
-                    }
-                }
-            }
+    private func primaryInsight(_ session: ReflectionSession) -> String {
+        let arcTitle = observationDetail(session, title: "Arc Title")
+        if arcTitle != "Pending" && arcTitle != "No clear arc" {
+            return arcTitle
         }
-        .padding(.horizontal)
-    }
 
-    private func cognitionCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Cognition Signals") {
-            VStack(spacing: 8) {
-                MetricRow(label: "Session state", value: session.state.rawValue.capitalized)
-                MetricRow(label: "Session boundary", value: session.endedAt == nil ? "Open" : "Closed")
-                MetricRow(label: "Emotional tone", value: observationDetail(session, title: "Emotional Tone"))
-                MetricRow(label: "Cognitive load", value: observationDetail(session, title: "Cognitive Load"))
-                MetricRow(label: "Focus signal", value: observationDetail(session, title: "Focus Signal"))
-                MetricRow(label: "Confidence", value: session.observations.first(where: { $0.title == "Observed Pattern" })?.confidence.rawValue.capitalized ?? "Unavailable")
-            }
+        let trajectoryTitle = observationDetail(session, title: "Trajectory Title")
+        if trajectoryTitle != "Pending" && trajectoryTitle != "No clear trajectory" {
+            return trajectoryTitle
         }
-        .padding(.horizontal)
-    }
 
-    private func voiceCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Voice Signals") {
-            VStack(spacing: 8) {
-                MetricRow(label: "Speech rate", value: session.voice.wordsPerMinute == 0 ? "Pending" : "\(session.voice.wordsPerMinute) WPM")
-                MetricRow(label: "Pause gaps", value: session.voice.pauseCount == 0 ? "None detected" : "\(session.voice.pauseCount)")
-                MetricRow(label: "Hesitation markers", value: session.voice.hesitationMarkers == 0 ? "None detected" : "\(session.voice.hesitationMarkers)")
-                MetricRow(label: "Duration", value: durationText)
-            }
+        let observedPattern = observationDetail(session, title: "Observed Pattern")
+        if observedPattern != "Pending" {
+            return observedPattern
         }
-        .padding(.horizontal)
-    }
 
-    private func bodyCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Body Signals") {
-            VStack(spacing: 12) {
-                Text("Body signals from \(session.biometrics.queryStart.shortTimeWithSeconds)–\(session.biometrics.queryEnd.shortTimeWithSeconds)")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                Text("No biometric samples attached to this session yet. Watch and HealthKit will be connected in a later build.")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                MetricRow(label: "Data quality", value: session.biometrics.quality.rawValue.capitalized)
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    private func noteCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Observatory Note") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(session.observations.first(where: { $0.title == "Observatory Note" })?.detail ?? "No observatory note yet.")
-                    .font(.subheadline)
-
-                Text("Observations are associations, not diagnoses.")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-            }
-        }
-        .padding(.horizontal)
+        return "No clear pattern detected yet."
     }
 
     private var emptyStateView: some View {
