@@ -1,0 +1,339 @@
+Git Tags
+
+v104 -> 749e070
+v105 -> 75c60a4
+v108 -> e1588b9
+
+SECOND VERSION HISTORY
+
+v001 Core iPhone Rebuild
+2026-06-11
+
+- Initial working iPhone application
+
+
+
+v002 Working Baseline
+2026-06-11
+
+- Stable foundation after rebuild
+
+
+
+v003 Lifecycle Management
+2026-06-11
+
+- Reflection session lifecycle
+
+- Start / stop / reset behavior
+
+
+
+v004 Timeline Detail
+2026-06-13
+
+- Timeline view improvements
+
+
+
+v005 Reflection Intelligence
+2026-06-14
+
+- Initial observation generation
+
+- Reflection analysis framework
+
+
+
+v104 Observation Intelligence Framework
+2026-06-15
+
+- ObservationEvent model
+
+- ObservationEventEngine
+
+- Pause gap detection
+
+- Emotion search detection
+
+- Self-correction detection
+
+- Qualification language detection
+
+- Breath cue detection
+
+- Event categorization (Language / Voice / Body)
+
+- Observation Event UI
+
+Git tag: v104
+
+
+LATEST RELEASE
+
+
+v105 Timestamp Precision and Formatters
+2026-06-15
+
+- Added displayTime formatter
+
+- Added debugTime formatter
+
+- Preserved raw Date storage internally
+
+- Added second-level precision throughout UI
+
+- Reflection headers display seconds
+
+- Timeline entries display seconds
+
+- Transcript timestamps display seconds
+
+- Foundation for future audit trails
+
+- Foundation for future HealthKit correlation
+
+- Foundation for future SaMD event reconstruction
+
+Git tag: v105
+
+v106 — Correlation Engine
+
+Date: 2026-06-15
+
+Added observation correlation framework.
+
+Introduced relationship detection between observation events.
+
+Added correlation detail presentation in Reflection Detail screen.
+
+Files:
+
+- CorrelationEngine.swift
+
+Status:
+
+Working build archived as:
+
+v106_correlation_engine_patch.zip
+
+v107 — Reflection Summary Engine
+
+Date: 2026-06-16
+
+Added reflection summary generation.
+
+Added cognition signal extraction.
+
+Added observation event restoration.
+
+Improved Reflection Detail presentation.
+
+Files:
+
+- ReflectionSummaryEngine.swift
+
+- ReflectionDetailScreen.swift
+
+- ReflectionSessionStore.swift
+
+Status:
+
+Working builds archived as:
+
+v107_reflection_summary_engine_patch.zip
+
+v107_restore_observation_events_patch.zip
+
+v108 — Emotional Trajectory Engine
+
+Date: 2026-06-16
+
+Added emotional trajectory analysis.
+
+Added emotional movement classification.
+
+Added emotional trajectory section to Reflection Detail screen.
+
+Integrated trajectory engine version tracking.
+
+Expanded session metadata reporting.
+
+Files:
+
+- EmotionalTrajectoryEngine.swift
+
+- CorrelationEngine.swift
+
+- ReflectionSummaryEngine.swift
+
+- ReflectionDetailScreen.swift
+
+- ReflectionSessionStore.swift
+
+Git:
+
+Commit: e1588b9
+
+Tag: v108
+
+Status:
+
+Stable
+
+Archive:
+
+v108_emotional_trajectory_engine.zip
+
+
+v109 — Cognitive Observation Events
+
+Date: 2026-06-17
+
+Major additions:
+
+• Added CognitiveObservationDetector.swift
+
+• Added Outcome Concern detection
+
+• Added Verification Attempt detection
+
+• Added Self-Monitoring detection
+
+• Added Relief / Reassurance detection
+
+• Observation Events now support Cognitive category
+
+• Reflection Summary now generated from cognitive event sequences
+
+• Correlation Engine expanded to use cognitive observations
+
+• Dynamics Engine expanded with:
+
+    - Resolution Seeking
+
+    - Active Checking
+
+• Timeline and Reflection Detail views display cognitive observations
+
+Example pattern:
+
+Outcome Concern → Verification Attempt → Relief / Reassurance
+
+Git:
+
+Commit: a890df9
+
+Tag: v109
+
+
+v110 — Reflection Arc Engine
+
+Date: 2026-06-17
+
+Major additions:
+
+• Added Reflection Arc Engine
+
+• Added reflection sequence detection
+
+• Added beginning / middle / end cognitive interpretation
+
+• Added arc classification:
+
+    - Concern → Verification → Reassurance
+
+    - Concern → Verification
+
+    - Verification → Reassurance
+
+    - Monitoring → Resolution
+
+• Added Reflection Arc card
+
+• Added consumer-facing "What's Going On" summary
+
+• Added Suggested Direction card
+
+• Simplified Observatory landing experience
+
+Example:
+
+Concern → Verification → Reassurance
+
+Interpretation:
+
+The reflection appears to begin with concern about a possible problem, move into checking or verification, and end with reassurance or acceptance.
+
+Git:
+
+Tag: v110
+
+Status:
+
+Stable
+
+Archive:
+
+v110_reflection_arc_engine_patch.zip
+
+
+
+v111 — Clean Observatory Interface
+
+Date: 2026-06-17
+
+Major additions:
+
+• Reorganized Observatory screen around user understanding
+
+• Reorganized Reflection Detail screen around insight and evidence
+
+• Introduced insight-first presentation model
+
+• Moved diagnostics below primary observations
+
+• Moved evidence into expandable sections
+
+• Reduced visual prominence of implementation details
+
+• Preserved observation events, correlations, dynamics, and diagnostics for analyst users
+
+• Added architectural foundation for future biometric and clinical data integration
+
+Design Principle:
+
+Insight First
+Evidence Second
+Diagnostics Third
+
+Product Observation:
+
+This release marks the transition from a developer-facing analysis console toward a user-facing observatory experience.
+
+Roadmap Impact:
+
+The application now separates:
+
+• Session-level observations
+• Evidence
+• Diagnostics
+
+This prepares the system for:
+
+• Speaker identity tracking
+• Biometric correlation
+• Longitudinal pattern analysis
+• Clinical and wearable integrations
+
+Git:
+
+Tag: v111
+
+Status:
+
+Stable
+
+Archive:
+
+v111_clean_observatory_interface.zip
