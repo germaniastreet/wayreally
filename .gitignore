@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+__MACOSX/
+
+# Xcode local user state
+*.xcuserstate
+DerivedData/
+build/
+
+# Archives should live outside the Git working tree
+Archives/
+saved versions/
+*.zip

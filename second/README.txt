@@ -336,3 +336,27 @@ v122 — Safety & Escalation Layer
 • SaMD readiness foundation
 • Explicit separation between observation, interpretation, coaching, and diagnosis
 
+
+
+v115 — Project / Git Structure Cleanup
+
+Implemented:
+
+• Restored a clean standard Xcode/Git project layout
+• Preserved one active Xcode project file at the repository root
+• Preserved the source files inside the project source folder
+• Removed saved-version recursion from the working-project archive
+• Added .gitignore for macOS metadata, archives, build products, and accidental saved-version folders
+• Added PROJECT_STRUCTURE_CLEANUP_v115.md
+• Recreated missing v113 and v114 Git tags in the cleaned repository history
+
+Important:
+
+• The active Xcode project to open is the repository-root second.xcodeproj.
+• The live source folder is second/.
+• Do not place saved versions, expanded archives, or old project copies inside the live Git working tree.
+• The project has not yet been renamed to Observatory. That should be a separate controlled version.
+
+Tag: v115
+
+Date: 2026-06-24
