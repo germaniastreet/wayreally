@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SignalLibraryScreen: View {
     @StateObject private var registry = SignalLibraryRegistry()
+    @State private var exportedJSONPreview: String = ""
 
     var body: some View {
         ZStack {
@@ -11,17 +12,32 @@ struct SignalLibraryScreen: View {
                 VStack(spacing: 16) {
                     ScreenHeader(
                         title: "Signal Libraries",
-                        subtitle: "Versioned phrase and pattern rules"
+                        subtitle: "Persistent local rule store"
                     )
 
-                    AppCard(title: "Library Principle") {
+                    AppCard(title: "Persistent Store", startsExpanded: true) {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Detection logic should be modular, inspectable, versioned, and eventually importable—not permanently hard-coded into Swift engines.")
+                            Text("Signal libraries now persist locally on this device. The default Observatory Cognitive Core library is seeded into storage on first launch.")
                                 .font(.subheadline)
 
-                            Text("This screen shows the first local library foundation. Future versions can add database storage, import/export, authoring tools, validation, and moderation.")
+                            Text("This is the first database-like foundation. Future versions can add import/export UI, authoring tools, validation, moderation, and third-party libraries.")
                                 .font(.caption)
                                 .foregroundStyle(SecondTheme.secondaryText)
+
+                            HStack {
+                                Button("Export Preview") {
+                                    exportedJSONPreview = exportPreview()
+                                }
+
+                                Spacer()
+
+                                Button("Reset Defaults") {
+                                    registry.resetToDefaults()
+                                    exportedJSONPreview = ""
+                                }
+                            }
+                            .font(.caption)
+                            .buttonStyle(.bordered)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -30,11 +46,19 @@ struct SignalLibraryScreen: View {
                     ForEach(registry.libraries) { library in
                         AppCard(title: library.name, startsExpanded: true) {
                             VStack(alignment: .leading, spacing: 12) {
+                                Toggle(
+                                    "Enabled",
+                                    isOn: Binding(
+                                        get: { library.isEnabledByDefault },
+                                        set: { registry.setLibraryEnabled(id: library.id, isEnabled: $0) }
+                                    )
+                                )
+
                                 MetricRow(label: "Library ID", value: library.id)
                                 MetricRow(label: "Version", value: library.version)
                                 MetricRow(label: "Author", value: "\(library.author) / \(library.authorType.rawValue)")
                                 MetricRow(label: "Domain", value: library.domain.rawValue)
-                                MetricRow(label: "Enabled", value: library.isEnabledByDefault ? "Yes" : "No")
+                                MetricRow(label: "Rules", value: "\(library.rules.count)")
 
                                 Text(library.description)
                                     .font(.caption)
@@ -77,27 +101,39 @@ struct SignalLibraryScreen: View {
                         .padding(.horizontal)
                     }
 
-                    AppCard(title: "v113 Scope") {
+                    if !exportedJSONPreview.isEmpty {
+                        AppCard(title: "Export Preview") {
+                            Text(exportedJSONPreview)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(SecondTheme.secondaryText)
+                                .lineLimit(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    AppCard(title: "v114 Scope") {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Implemented")
                                 .font(.subheadline)
                                 .bold()
 
-                            Text("• Versioned local signal library model")
-                            Text("• Library-backed cognitive detector")
-                            Text("• Provenance tags on generated observation events")
-                            Text("• Inspectable library/rule screen")
+                            Text("• Local persistent signal-library store")
+                            Text("• First-launch seeding of default library")
+                            Text("• Detection reads from persisted enabled libraries")
+                            Text("• Enable/disable library control")
+                            Text("• Export preview for inspection")
 
                             Text("Not yet implemented")
                                 .font(.subheadline)
                                 .bold()
                                 .padding(.top, 6)
 
-                            Text("• Database persistence")
-                            Text("• Import/export UI")
-                            Text("• Third-party library validation")
-                            Text("• Migration of every hard-coded detector")
-                            Text("• Clinical or biometric rules")
+                            Text("• Import file picker")
+                            Text("• Remote sync")
+                            Text("• Library marketplace")
+                            Text("• Clinical library validation")
+                            Text("• Full migration of every detector")
                         }
                         .font(.caption)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -109,5 +145,14 @@ struct SignalLibraryScreen: View {
         }
         .navigationTitle("Libraries")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func exportPreview() -> String {
+        do {
+            let data = try registry.exportJSON()
+            return String(data: data, encoding: .utf8) ?? "Unable to render JSON."
+        } catch {
+            return "Export failed: \(error.localizedDescription)"
+        }
     }
 }

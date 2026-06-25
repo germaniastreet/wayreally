@@ -187,127 +187,152 @@ v111_clean_observatory_interface.zip
 
 Date: 2026-06-17
 
+v112 — Observatory Source of Truth & Roadmap
 
-Planned
+Implemented:
 
-v112 — Observatory Requirements & Roadmap
+• Added project constraints, glossary, and pre-build checklist as the architecture baseline
+• Added revised requirements and roadmap document
+• Established the required implementation order: durable data foundation before new feature-specific engines
+• Established rules for modularity, provenance, evidence traceability, non-diagnostic language, and scalable signal sources
 
-    • Product requirements document
+Tag: v112
 
-    • System architecture
-
-    • Safety and regulatory roadmap
-
-    • Data model roadmap
-
-    • Signal taxonomy
-
-    • Session / Reflection hierarchy
-
-v113 — Speaker Identity Foundation
-
-    • Unknown speakers
-
-    • Recurring speakers
-
-    • Suggested identities
-
-    • Confirmed identities
-
-    • Multi-speaker session architecture
-
-v114 — Biometric Signal Foundation
-
-    • HealthKit integration layer
-
-    • Heart rate
-
-    • HRV
-
-    • Respiratory rate
-
-    • Sleep metrics
-
-    • Workout metrics
-
-    • Time-aligned biometric events
-
-v115 — Longitudinal Pattern Engine
-
-    • Cross-session analysis
-
-    • Daily summaries
-
-    • Weekly summaries
-
-    • Pattern frequency tracking
-
-    • Change detection
-
-v116 — Meaning Engine
-
-    • Human-readable interpretation
-
-    • Behavioral coaching
-
-    • Reflection prompts
-
-    • Alternative explanations
-
-    • Evidence traceability
-
-v117 — Signal Library Framework
-
-    • User-defined libraries
-
-    • Domain-specific libraries
-
-    • CBT libraries
-
-    • Negotiation libraries
-
-    • Interview-analysis libraries
-
-    • Custom pattern packs
-
-v118 — Multimodal Signal Foundation
-
-    • Environmental signals
-
-    • Ambient audio
-
-    • Contextual events
-
-    • Wearable data normalization
-
-    • Clinical data normalization
-
-v119 — Clinical Data Foundation
-
-    • MyChart integration architecture
-
-    • Quest/Labcorp architecture
-
-    • Medication records
-
-    • Clinical observations
-
-    • Explainable clinical correlations
-
-v120 — Safety & Escalation Layer
-
-    • Risk signal framework
-
-    • Explainability requirements
-
-    • Escalation pathways
-
-    • SaMD readiness foundation
+Date: 2026-06-24
 
 
+v113 — Signal Library Foundation
+
+Implemented:
+
+• Added modular SignalLibrary and SignalDetectionRule data models
+• Added versioned, inspectable library metadata: IDs, versions, author, domain, tags, confidence, enabled state, and notes
+• Added generic SignalLibraryDetectionEngine
+• Migrated CognitiveObservationDetector to read cognitive rules through the generic library engine
+• Added initial Observatory Cognitive Core library
+• Added evidence provenance to generated observations:
+  - library ID
+  - library version
+  - rule ID
+  - rule domain
+  - matched phrase
+  - engine version
+• Added Signal Library inspection screen
+
+Important:
+
+• v113 moved cognitive phrase/pattern criteria out of scattered detector logic and into a reusable library structure.
+• The initial library remained compiled seed data; it was not yet persistent storage or a user-importable database.
+
+Tag: v113
+
+Date: 2026-06-24
 
 
-Active development folder:
+v114 — Persistent Signal Library Store
 
-second/
+Implemented:
+
+• Added PersistentSignalLibraryStore
+• Added local JSON-backed persistence in the app’s protected Application Support storage
+• Seeded the Observatory Cognitive Core library into local storage on first launch
+• Updated SignalLibraryRegistry to load and manage persisted libraries
+• Updated SignalLibraryDetectionEngine and CognitiveObservationDetector to read enabled libraries from the persistent local store
+• Added local enable/disable control and export-preview inspection to SignalLibraryScreen
+• Added persistent-store provenance tag:
+  - store:persistent-local
+
+Architecture status:
+
+• Signal libraries are now persisted locally on-device rather than existing only as compiled-in runtime defaults.
+• The compiled default library remains as seed/fallback data for first launch and recovery.
+• The runtime detector now reads persisted enabled libraries.
+
+Not yet implemented:
+
+• File-picker import/export workflow
+• Library authoring/editing UI
+• Third-party library validation, signatures, moderation, licensing, or conflict handling
+• Cloud sync or remote database
+• Migration of every existing detector to library-backed rules
+• Biometrics, speaker identity, clinical data, or diagnostic logic
+
+Tag: v114
+
+Date: 2026-06-24
+
+
+Revised planned sequence
+
+v115 — Library Import, Validation & Management
+
+• JSON package import/export workflow
+• Library schema validation
+• Version and compatibility checks
+• Enable/disable controls at library and rule level
+• Import history and provenance
+• Foundation for user, moderator, Observatory, and third-party libraries
+
+v116 — Speaker Identity Foundation
+
+• Unknown speakers
+• Recurring speakers
+• Suggested identities
+• Confirmed identities
+• Multi-speaker session architecture
+• Privacy-preserving speaker identity controls
+
+v117 — Biometric Signal Foundation
+
+• HealthKit integration layer
+• Heart rate
+• HRV
+• Respiratory rate
+• Sleep metrics
+• Workout metrics
+• Time-aligned biometric events
+• Non-diagnostic signal normalization
+
+v118 — Longitudinal Pattern Engine
+
+• Cross-session analysis
+• Daily summaries
+• Weekly summaries
+• Pattern frequency tracking
+• Change detection
+• Minimum-evidence thresholds before comparative claims
+
+v119 — User-Facing Observation & Meaning Layer
+
+• Human-readable observations separate from raw detector labels
+• Behavioral coaching prompts
+• Reflection prompts
+• Alternative explanations
+• Evidence traceability
+• Audience/visibility controls: user, coach, analyst, developer
+• No “trajectory” or “arc” claims without sufficient within-reflection or longitudinal evidence
+
+v120 — Multimodal Signal Foundation
+
+• Environmental signals
+• Ambient audio
+• Contextual events
+• Wearable data normalization
+• Clinical data normalization architecture
+
+v121 — Clinical Data Foundation
+
+• MyChart integration architecture
+• Quest/Labcorp architecture
+• Medication records
+• Clinical observations
+• Explainable, non-diagnostic correlations
+
+v122 — Safety & Escalation Layer
+
+• Risk signal framework
+• Explainability requirements
+• Escalation pathways
+• SaMD readiness foundation
+• Explicit separation between observation, interpretation, coaching, and diagnosis
 

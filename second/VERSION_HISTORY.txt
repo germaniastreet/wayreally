@@ -337,3 +337,185 @@ Stable
 Archive:
 
 v111_clean_observatory_interface.zip
+
+v112 — Observatory Source of Truth & Roadmap
+
+Date: 2026-06-24
+
+Major additions:
+
+• Added PROJECT_CONSTRAINTS.md
+• Added PROJECT_GLOSSARY.md
+• Added PRE_BUILD_CHECKLIST.md
+• Added Observatory_Requirements_and_Roadmap_v0_2.docx
+• Established the project architecture/documentation baseline
+• Established binding priorities: modularity, provenance, evidence traceability, non-diagnostic language, and scalable signal sources
+• Established that durable data foundations precede new feature-specific engines
+
+Git:
+
+Commit: 4f71deb
+
+Tag: v112
+
+Status:
+
+Stable documentation and architecture baseline
+
+
+v113 — Signal Library Foundation
+
+Date: 2026-06-24
+
+Major additions:
+
+• Added SignalLibraryModels.swift
+• Added SignalLibraryRegistry.swift
+• Added SignalLibraryDetectionEngine.swift
+• Added SignalLibraryScreen.swift
+• Migrated CognitiveObservationDetector.swift to library-backed detection
+• Added versioned SignalLibrary and SignalDetectionRule structures
+• Added library metadata: ID, version, author, domain, tags, confidence, enabled state, and notes
+• Added initial Observatory Cognitive Core library
+• Added evidence provenance to generated observation events:
+    - library ID
+    - library version
+    - rule ID
+    - rule domain
+    - matched phrase
+    - engine version
+• Added inspectable library/rule presentation
+
+Architecture note:
+
+v113 replaces the first portion of scattered hard-coded cognitive phrase criteria with a reusable library model and generic detection engine. The initial library remains compiled seed data at this stage; persistent runtime storage is added in v114.
+
+Git:
+
+Tag: v113
+
+Status:
+
+Stable foundation pending local persistence
+
+
+v114 — Persistent Signal Library Store
+
+Date: 2026-06-24
+
+Major additions:
+
+• Added PersistentSignalLibraryStore.swift
+• Added local JSON-backed persistent storage in the app’s protected Application Support directory
+• Seeded Observatory Cognitive Core library into local storage on first launch
+• Updated SignalLibraryRegistry to load and manage persisted libraries
+• Updated SignalLibraryDetectionEngine to read enabled libraries from the persistent local store
+• Updated CognitiveObservationDetector to use persisted enabled libraries
+• Updated SignalLibraryScreen with:
+    - library enable/disable control
+    - persistent-store inspection
+    - export-preview inspection
+    - reset-to-defaults control
+• Added persistent-store provenance tag:
+    - store:persistent-local
+
+Architecture note:
+
+Signal libraries are now persisted locally on-device. Compiled defaults remain only as first-launch seed and recovery data. Runtime detection reads the persisted enabled libraries.
+
+Not yet included:
+
+• File-picker import/export workflow
+• Library authoring/editing UI
+• Third-party library validation, signatures, moderation, licensing, or conflict handling
+• Cloud sync or remote database
+• Full migration of every detector to library-backed rules
+• Biometrics, speaker identity, clinical data, or diagnostic logic
+
+Git:
+
+Tag: v114
+
+Status:
+
+Implementation prepared; build and runtime verification required
+
+Archive:
+
+v114_persistent_signal_library_store.zip
+
+
+Revised Next Versions
+
+v115 — Library Import, Validation & Management
+
+• JSON package import/export workflow
+• Library schema validation
+• Version and compatibility checks
+• Enable/disable controls at library and rule level
+• Import history and provenance
+• Foundation for user, moderator, Observatory, and third-party libraries
+
+v116 — Speaker Identity Foundation
+
+• Unknown speakers
+• Recurring speakers
+• Suggested identities
+• Confirmed identities
+• Multi-speaker session architecture
+• Privacy-preserving speaker identity controls
+
+v117 — Biometric Signal Foundation
+
+• HealthKit integration layer
+• Heart rate
+• HRV
+• Respiratory rate
+• Sleep metrics
+• Workout metrics
+• Time-aligned biometric events
+• Non-diagnostic signal normalization
+
+v118 — Longitudinal Pattern Engine
+
+• Cross-session analysis
+• Daily summaries
+• Weekly summaries
+• Pattern frequency tracking
+• Change detection
+• Minimum-evidence thresholds before comparative claims
+
+v119 — User-Facing Observation & Meaning Layer
+
+• Human-readable observations separate from raw detector labels
+• Behavioral coaching prompts
+• Reflection prompts
+• Alternative explanations
+• Evidence traceability
+• Audience/visibility controls: user, coach, analyst, developer
+• No “trajectory” or “arc” claims without sufficient within-reflection or longitudinal evidence
+
+v120 — Multimodal Signal Foundation
+
+• Environmental signals
+• Ambient audio
+• Contextual events
+• Wearable data normalization
+• Clinical data normalization architecture
+
+v121 — Clinical Data Foundation
+
+• MyChart integration architecture
+• Quest/Labcorp architecture
+• Medication records
+• Clinical observations
+• Explainable, non-diagnostic correlations
+
+v122 — Safety & Escalation Layer
+
+• Risk signal framework
+• Explainability requirements
+• Escalation pathways
+• SaMD readiness foundation
+• Explicit separation between observation, interpretation, coaching, and diagnosis
+

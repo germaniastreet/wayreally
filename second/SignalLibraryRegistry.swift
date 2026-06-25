@@ -6,7 +6,7 @@ import Combine
 final class SignalLibraryRegistry: ObservableObject {
     @Published var libraries: [SignalLibrary]
 
-    init(libraries: [SignalLibrary] = SignalLibraryDefaults.defaultLibraries) {
+    init(libraries: [SignalLibrary] = PersistentSignalLibraryStore.shared.librariesSnapshot()) {
         self.libraries = libraries
     }
 
@@ -32,17 +32,22 @@ final class SignalLibraryRegistry: ObservableObject {
     }
 
     func setLibraryEnabled(id: String, isEnabled: Bool) {
-        guard let index = libraries.firstIndex(where: { $0.id == id }) else { return }
-        libraries[index].isEnabledByDefault = isEnabled
-        libraries[index].updatedAt = Date()
+        PersistentSignalLibraryStore.shared.setLibraryEnabled(id: id, isEnabled: isEnabled)
+        libraries = PersistentSignalLibraryStore.shared.librariesSnapshot()
+    }
+
+    func resetToDefaults() {
+        PersistentSignalLibraryStore.shared.resetToDefaults()
+        libraries = PersistentSignalLibraryStore.shared.librariesSnapshot()
     }
 
     func exportJSON() throws -> Data {
-        try JSONEncoder.prettyPrinted.encode(libraries)
+        try PersistentSignalLibraryStore.shared.exportJSONData()
     }
 
     func importJSON(_ data: Data) throws {
-        libraries = try JSONDecoder.iso8601Decoder.decode([SignalLibrary].self, from: data)
+        try PersistentSignalLibraryStore.shared.importJSONData(data)
+        libraries = PersistentSignalLibraryStore.shared.librariesSnapshot()
     }
 }
 
@@ -73,19 +78,7 @@ enum SignalLibraryDefaults {
                     name: "Outcome Concern",
                     domain: .cognitive,
                     matchType: .containsAny,
-                    phrases: [
-                        "hope i didn't",
-                        "hope i did not",
-                        "i hope i didn't",
-                        "i hope i did not",
-                        "mess this up",
-                        "miss this up",
-                        "worried",
-                        "i'm worried",
-                        "im worried",
-                        "what if",
-                        "concerned"
-                    ],
+                    phrases: ["hope i didn't", "hope i did not", "i hope i didn't", "i hope i did not", "mess this up", "miss this up", "worried", "i'm worried", "im worried", "what if", "concerned"],
                     eventKind: .outcomeConcern,
                     eventCategory: .cognitive,
                     title: "Outcome concern",
@@ -100,17 +93,7 @@ enum SignalLibraryDefaults {
                     name: "Verification Attempt",
                     domain: .cognitive,
                     matchType: .containsAny,
-                    phrases: [
-                        "let me go back",
-                        "go back and take a look",
-                        "take a look",
-                        "let me check",
-                        "double check",
-                        "check this",
-                        "checking",
-                        "verify",
-                        "confirm"
-                    ],
+                    phrases: ["let me go back", "go back and take a look", "take a look", "let me check", "double check", "check this", "checking", "verify", "confirm"],
                     eventKind: .verificationAttempt,
                     eventCategory: .cognitive,
                     title: "Verification attempt",
@@ -125,16 +108,7 @@ enum SignalLibraryDefaults {
                     name: "Self-Monitoring",
                     domain: .cognitive,
                     matchType: .containsAny,
-                    phrases: [
-                        "checking checking",
-                        "monitoring",
-                        "watching",
-                        "looking at",
-                        "i think it's ok",
-                        "i think it's okay",
-                        "i think its ok",
-                        "i think its okay"
-                    ],
+                    phrases: ["checking checking", "monitoring", "watching", "looking at", "i think it's ok", "i think it's okay", "i think its ok", "i think its okay"],
                     eventKind: .selfMonitoring,
                     eventCategory: .cognitive,
                     title: "Self-monitoring",
@@ -149,19 +123,7 @@ enum SignalLibraryDefaults {
                     name: "Relief / Reassurance",
                     domain: .cognitive,
                     matchType: .containsAny,
-                    phrases: [
-                        "ok looks good",
-                        "okay looks good",
-                        "looks good",
-                        "it's ok",
-                        "it's okay",
-                        "its ok",
-                        "its okay",
-                        "all good",
-                        "working",
-                        "yes",
-                        "relief"
-                    ],
+                    phrases: ["ok looks good", "okay looks good", "looks good", "it's ok", "it's okay", "its ok", "its okay", "all good", "working", "yes", "relief"],
                     eventKind: .relief,
                     eventCategory: .cognitive,
                     title: "Relief / reassurance",
@@ -176,16 +138,7 @@ enum SignalLibraryDefaults {
                     name: "Reorientation Toward Progress",
                     domain: .cognitive,
                     matchType: .containsAny,
-                    phrases: [
-                        "moving on",
-                        "let's go",
-                        "lets go",
-                        "now we are cooking",
-                        "now we're talking",
-                        "continue",
-                        "progress",
-                        "next"
-                    ],
+                    phrases: ["moving on", "let's go", "lets go", "now we are cooking", "now we're talking", "continue", "progress", "next"],
                     eventKind: .reorientation,
                     eventCategory: .cognitive,
                     title: "Reorientation toward progress",
@@ -200,16 +153,7 @@ enum SignalLibraryDefaults {
                     name: "Planning",
                     domain: .cognitive,
                     matchType: .containsAny,
-                    phrases: [
-                        "i'll",
-                        "i will",
-                        "i should",
-                        "i need to",
-                        "i'm going to",
-                        "im going to",
-                        "next i",
-                        "plan"
-                    ],
+                    phrases: ["i'll", "i will", "i should", "i need to", "i'm going to", "im going to", "next i", "plan"],
                     eventKind: .planning,
                     eventCategory: .cognitive,
                     title: "Planning",
@@ -224,15 +168,7 @@ enum SignalLibraryDefaults {
                     name: "Decision Point",
                     domain: .cognitive,
                     matchType: .containsAny,
-                    phrases: [
-                        "i decide",
-                        "i decided",
-                        "decision",
-                        "i'll do",
-                        "i will do",
-                        "that means",
-                        "so i"
-                    ],
+                    phrases: ["i decide", "i decided", "decision", "i'll do", "i will do", "that means", "so i"],
                     eventKind: .decisionPoint,
                     eventCategory: .cognitive,
                     title: "Decision point",
@@ -244,22 +180,5 @@ enum SignalLibraryDefaults {
                 )
             ]
         )
-    }
-}
-
-private extension JSONEncoder {
-    static var prettyPrinted: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }
-}
-
-private extension JSONDecoder {
-    static var iso8601Decoder: JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
     }
 }

@@ -1,11 +1,11 @@
 import Foundation
 
 enum SignalLibraryDetectionEngine {
-    static let engineVersion = "1.0"
+    static let engineVersion = "1.1"
 
     static func detect(
         session: ReflectionSession,
-        libraries: [SignalLibrary] = SignalLibraryDefaults.defaultLibraries,
+        libraries: [SignalLibrary] = PersistentSignalLibraryStore.shared.activeLibraries,
         domain: SignalLibraryDomain? = nil
     ) -> [ObservationEvent] {
         guard let latest = session.transcript.last else { return [] }
@@ -48,11 +48,10 @@ enum SignalLibraryDetectionEngine {
 
     static func matches(
         text: String,
-        libraries: [SignalLibrary] = SignalLibraryDefaults.defaultLibraries,
+        libraries: [SignalLibrary] = PersistentSignalLibraryStore.shared.activeLibraries,
         domain: SignalLibraryDomain? = nil
     ) -> [SignalLibraryMatch] {
         let lower = text.lowercased()
-
         let activeLibraries = libraries.filter { library in
             library.isEnabledByDefault && (domain == nil || library.domain == domain)
         }
@@ -122,17 +121,13 @@ enum SignalLibraryDetectionEngine {
         }
     }
 
-    private static func provenanceTags(
-        library: SignalLibrary,
-        rule: SignalDetectionRule,
-        matchedPhrase: String?
-    ) -> [String] {
+    private static func provenanceTags(library: SignalLibrary, rule: SignalDetectionRule, matchedPhrase: String?) -> [String] {
         var tags = rule.tags
-
         tags.append("library:\(library.id)")
         tags.append("library-version:\(library.version)")
         tags.append("rule:\(rule.id)")
         tags.append("rule-domain:\(rule.domain.rawValue)")
+        tags.append("store:persistent-local")
         tags.append("engine:\(engineVersion)")
 
         if let matchedPhrase, !matchedPhrase.isEmpty {
