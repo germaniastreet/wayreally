@@ -4,7 +4,6 @@ import Combine
 struct ObservatoryScreen: View {
     @EnvironmentObject private var store: ReflectionSessionStore
     @StateObject private var speechManager = SpeechRecognitionManager()
-    @State private var timerTick = Date()
 
     private var displaySession: ReflectionSession? {
         store.activeSession
@@ -21,9 +20,6 @@ struct ObservatoryScreen: View {
                     emptyStateView
                 }
             }
-            .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { date in
-                timerTick = date
-            }
         }
     }
 
@@ -35,11 +31,13 @@ struct ObservatoryScreen: View {
                     subtitle: store.isRecording ? "Recording Reflection" : "Reflection Complete"
                 )
 
-                Text("\(session.timeRangeText) • \(durationText)")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
+                TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                    Text("\(session.timeRangeText) • \(durationText(for: session, now: context.date))")
+                        .font(.caption)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                }
 
                 lifecycleControls
 
@@ -381,13 +379,12 @@ struct ObservatoryScreen: View {
         session.observations.first(where: { $0.title == title })?.detail ?? "Pending"
     }
 
-    private var durationText: String {
+    private func durationText(for session: ReflectionSession, now: Date) -> String {
         if store.isRecording, let start = store.activeSession?.startedAt {
-            let seconds = Int(timerTick.timeIntervalSince(start))
+            let seconds = max(0, Int(now.timeIntervalSince(start)))
             return "\(seconds / 60)m \(seconds % 60)s"
         }
 
-        return displaySession?.durationText ?? "0m 0s"
+        return session.durationText
     }
 }
-
