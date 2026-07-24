@@ -30,7 +30,7 @@ struct ObservatoryScreen: View {
         ScrollView {
             VStack(spacing: 16) {
                 ScreenHeader(
-                    title: "second",
+                    title: "Second Thought",
                     subtitle: store.isRecording ? "Recording Reflection" : "Reflection Complete"
                 )
 
