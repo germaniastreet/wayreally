@@ -3,6 +3,10 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var sessionStore = ReflectionSessionStore()
 
+    /// Shared with AudioCaptureScreen so both screens control and reflect the
+    /// same live recording instead of each owning a separate speech engine.
+    @StateObject private var speechManager = SpeechRecognitionManager()
+
     var body: some View {
         TabView {
             ObservatoryScreen()
@@ -30,6 +34,13 @@ struct ContentView: View {
                     Label("Capture", systemImage: "mic")
                 }
 
+            NavigationStack {
+                SignalLibraryScreen()
+            }
+            .tabItem {
+                Label("Libraries", systemImage: "books.vertical")
+            }
+
             SettingsScreen()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
@@ -37,6 +48,7 @@ struct ContentView: View {
         }
         .tint(SecondTheme.heartRate)
         .environmentObject(sessionStore)
+        .environmentObject(speechManager)
     }
 }
 

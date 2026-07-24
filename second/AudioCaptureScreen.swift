@@ -1,13 +1,159 @@
 import SwiftUI
 
-struct AudioCaptureScreen: View { @State private var isRecording = true; @State private var elapsedSeconds = 1634
-    var body: some View { NavigationStack { ZStack { SecondTheme.background.ignoresSafeArea(); ScrollView { VStack(spacing:16) { ScreenHeader(title:"Audio Capture", subtitle:"Capture high-quality audio for analysis"); AppCard(title:isRecording ? "Recording" : "Paused") { VStack(spacing:18) { Text(timerText).font(.system(size:44, weight:.bold, design:.rounded)); MiniLineChart(values:SampleData.biometricSamples.compactMap{$0.heartRate}, color:SecondTheme.heartRate).frame(height:82); HStack { SignalBadge(icon:"mic", title:"Input", value:"Built-in", color:SecondTheme.primaryText); Spacer(); SignalBadge(icon:"waveform", title:"Level", value:"Good", color:SecondTheme.respiration) }; HStack(spacing:36) { CaptureButton(icon:isRecording ? "pause" : "play", label:isRecording ? "Pause" : "Resume", color:SecondTheme.background) { isRecording.toggle() }; CaptureButton(icon:"stop.fill", label:"Stop", color:Color.red.opacity(0.9)) { isRecording = false }; CaptureButton(icon:"bookmark", label:"Marker", color:SecondTheme.background) {} } } }.padding(.horizontal); AppCard(title:"Session Info") { HStack { MetricColumn(title:"Quality", value:"High"); Divider(); MetricColumn(title:"Format", value:"WAV"); Divider(); MetricColumn(title:"Estimated Size", value:"~32 MB/hr") } }.padding(.horizontal); AppCard(title:"Live Audio Levels") { HStack(alignment:.bottom, spacing:7) { ForEach(0..<28, id:\.self) { i in RoundedRectangle(cornerRadius:4).fill(levelColor(i)).frame(width:9, height:CGFloat(22+(i%7)*5)) } } }.padding(.horizontal) }.padding(.bottom,24) } } } }
-    private var timerText:String { String(format:"00:%02d:%02d", elapsedSeconds/60, elapsedSeconds%60) }
-    private func levelColor(_ i:Int)->Color { i < 18 ? SecondTheme.respiration : (i < 23 ? SecondTheme.gold : SecondTheme.border.opacity(0.6)) }
+struct AudioCaptureScreen: View {
+    @EnvironmentObject private var store: ReflectionSessionStore
+    @EnvironmentObject private var speechManager: SpeechRecognitionManager
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                SecondTheme.background.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ScreenHeader(title: "Audio Capture", subtitle: "Capture a reflection for analysis")
+
+                        AppCard(title: store.isRecording ? "Recording" : "Not Recording") {
+                            VStack(spacing: 18) {
+                                TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                                    Text(timerText(now: context.date))
+                                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                                        .foregroundStyle(SecondTheme.primaryText)
+                                }
+
+                                if store.isRecording {
+                                    RecordingPulse()
+                                }
+
+                                Text(speechManager.statusMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(SecondTheme.secondaryText)
+
+                                HStack(spacing: 36) {
+                                    if store.isRecording {
+                                        CaptureButton(icon: "stop.fill", label: "Stop", color: Color.red.opacity(0.9)) {
+                                            speechManager.stop()
+                                            store.stopAndObserve()
+                                        }
+
+                                        CaptureButton(icon: "arrow.counterclockwise", label: "Reset", color: SecondTheme.background) {
+                                            speechManager.stop()
+                                            store.resetActiveSession()
+                                        }
+                                    } else {
+                                        CaptureButton(icon: "record.circle", label: "Start", color: SecondTheme.background) {
+                                            startCapture()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+
+                        AppCard(title: "Live Transcript") {
+                            liveTranscriptView
+                        }
+                        .padding(.horizontal)
+
+                        AppCard(title: "About This Screen", startsExpanded: false) {
+                            Text("This screen starts and stops the same reflection recording as the Observatory tab — they share one live session, so you can switch tabs mid-recording without losing anything. Raw audio level metering and file format details are not implemented yet; this build captures live speech-to-text only.")
+                                .font(.caption)
+                                .foregroundStyle(SecondTheme.secondaryText)
+                        }
+                        .padding(.horizontal)
+                    }
+                    .padding(.bottom, 24)
+                }
+            }
+        }
+    }
+
+    private var liveTranscriptView: some View {
+        Group {
+            if let session = store.activeSession, !session.transcript.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(session.transcript) { event in
+                        Text(event.text)
+                            .font(.subheadline)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(store.isRecording ? "Listening..." : "Tap Start to begin capturing a reflection.")
+                    .font(.subheadline)
+                    .foregroundStyle(SecondTheme.secondaryText)
+            }
+        }
+    }
+
+    private func startCapture() {
+        Task {
+            let allowed = await speechManager.requestPermissions()
+            guard allowed else { return }
+
+            store.startReflection()
+
+            speechManager.start { text in
+                store.updateLiveTranscript(text)
+            }
+        }
+    }
+
+    private func timerText(now: Date) -> String {
+        let seconds: Int
+        if store.isRecording, let session = store.activeSession {
+            seconds = max(0, Int(now.timeIntervalSince(session.startedAt)))
+        } else if let session = store.activeSession {
+            seconds = session.durationSeconds
+        } else {
+            seconds = 0
+        }
+
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        let secs = seconds % 60
+        return String(format: "%02d:%02d:%02d", hours, minutes, secs)
+    }
 }
-struct CaptureButton: View { let icon:String; let label:String; let color:Color; let action:()->Void
-    var body: some View { VStack(spacing:8) { Button(action:action) { Image(systemName:icon).font(.title2).foregroundStyle(label == "Stop" ? .white : SecondTheme.primaryText).frame(width:70,height:70).background(color).clipShape(Circle()) }; Text(label).font(.caption) } }
+
+struct RecordingPulse: View {
+    @State private var isPulsing = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(Color.red)
+                .frame(width: 10, height: 10)
+                .opacity(isPulsing ? 0.3 : 1.0)
+                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPulsing)
+
+            Text("Listening")
+                .font(.caption)
+                .foregroundStyle(SecondTheme.secondaryText)
+        }
+        .onAppear { isPulsing = true }
+    }
 }
-struct MetricColumn: View { let title:String; let value:String
-    var body: some View { VStack(spacing:4) { Text(title).font(.caption).foregroundStyle(SecondTheme.secondaryText); Text(value).font(.headline) }.frame(maxWidth:.infinity) }
+
+struct CaptureButton: View {
+    let icon: String
+    let label: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Button(action: action) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(label == "Stop" ? .white : SecondTheme.primaryText)
+                    .frame(width: 70, height: 70)
+                    .background(color)
+                    .clipShape(Circle())
+            }
+
+            Text(label)
+                .font(.caption)
+        }
+    }
 }

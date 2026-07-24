@@ -3,7 +3,10 @@ import Combine
 
 struct ObservatoryScreen: View {
     @EnvironmentObject private var store: ReflectionSessionStore
-    @StateObject private var speechManager = SpeechRecognitionManager()
+
+    /// Shared with AudioCaptureScreen (injected from ContentView) so starting
+    /// or stopping a reflection from either tab controls the same recording.
+    @EnvironmentObject private var speechManager: SpeechRecognitionManager
 
     private var displaySession: ReflectionSession? {
         store.activeSession
@@ -47,7 +50,7 @@ struct ObservatoryScreen: View {
                     whatsGoingOnCard(session)
                     reflectionArcCard(session)
                     suggestedDirectionCard(session)
-                    evidenceCard(session)
+                    validationEvidenceCard(session)
                     diagnosticsCard(session)
                 }
             }
@@ -118,9 +121,9 @@ struct ObservatoryScreen: View {
         .padding(.horizontal)
     }
 
-    private func evidenceCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Evidence", startsExpanded: false) {
-            VStack(alignment: .leading, spacing: 16) {
+    private func validationEvidenceCard(_ session: ReflectionSession) -> some View {
+        AppCard(title: "Validation Evidence", startsExpanded: false) {
+            VStack(alignment: .leading, spacing: 18) {
                 evidenceSectionTitle("Transcript")
                 transcriptView(session)
 
@@ -137,7 +140,7 @@ struct ObservatoryScreen: View {
                         .foregroundStyle(SecondTheme.secondaryText)
                 } else {
                     ForEach(ObservationEventEngine.groupedEvents(session.observationEvents), id: \.category) { group in
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 10) {
                             Text("\(group.category.rawValue) (\(group.events.count))")
                                 .font(.subheadline)
                                 .bold()
@@ -146,10 +149,8 @@ struct ObservatoryScreen: View {
                                 .font(.caption)
                                 .foregroundStyle(SecondTheme.secondaryText)
 
-                            ForEach(group.events.prefix(3)) { event in
-                                Text("• \(event.title)")
-                                    .font(.caption)
-                                    .foregroundStyle(SecondTheme.secondaryText)
+                            ForEach(group.events) { event in
+                                observationEventDetail(event)
                             }
                         }
                     }
@@ -162,10 +163,22 @@ struct ObservatoryScreen: View {
                     .font(.caption)
                     .foregroundStyle(SecondTheme.secondaryText)
 
-                ForEach(session.dynamicsPatterns.prefix(3)) { pattern in
-                    Text("• \(pattern.title)")
+                if session.dynamicsPatterns.isEmpty {
+                    Text("No dynamics patterns detected yet.")
                         .font(.caption)
                         .foregroundStyle(SecondTheme.secondaryText)
+                } else {
+                    ForEach(Array(session.dynamicsPatterns.enumerated()), id: \.offset) { _, pattern in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(pattern.title)
+                                .font(.caption)
+                                .bold()
+
+                            Text(pattern.detail)
+                                .font(.caption)
+                                .foregroundStyle(SecondTheme.secondaryText)
+                        }
+                    }
                 }
 
                 Divider()
@@ -175,20 +188,48 @@ struct ObservatoryScreen: View {
                     .font(.caption)
                     .foregroundStyle(SecondTheme.secondaryText)
 
-                ForEach(session.observationCorrelations.prefix(3)) { correlation in
-                    Text("• \(correlation.title)")
+                if session.observationCorrelations.isEmpty {
+                    Text("No correlations detected yet.")
                         .font(.caption)
                         .foregroundStyle(SecondTheme.secondaryText)
+                } else {
+                    ForEach(Array(session.observationCorrelations.enumerated()), id: \.offset) { _, correlation in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(correlation.title)
+                                .font(.caption)
+                                .bold()
+                        }
+                    }
                 }
             }
         }
         .padding(.horizontal)
     }
 
+    private func observationEventDetail(_ event: ObservationEvent) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("\(event.timestamp.shortTimeWithSeconds) • \(event.title)")
+                .font(.caption)
+                .bold()
+                .foregroundStyle(SecondTheme.primaryText)
+
+            Text(event.detail)
+                .font(.caption)
+                .foregroundStyle(SecondTheme.secondaryText)
+
+            if let relatedText = event.relatedText, !relatedText.isEmpty {
+                Text("Related: \(relatedText)")
+                    .font(.caption)
+                    .foregroundStyle(SecondTheme.secondaryText)
+            }
+        }
+        .padding(.top, 4)
+    }
+
     private func diagnosticsCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Diagnostics", startsExpanded: false) {
+        AppCard(title: "Session State", startsExpanded: false) {
             VStack(spacing: 8) {
-                MetricRow(label: "Session state", value: session.state.rawValue.capitalized)
+                MetricRow(label: "State", value: session.state.rawValue.capitalized)
                 MetricRow(label: "Boundary", value: session.endedAt == nil ? "Open" : "Closed")
                 MetricRow(label: "Duration", value: session.durationText)
                 MetricRow(label: "Speech rate", value: session.voice.wordsPerMinute == 0 ? "Pending" : "\(session.voice.wordsPerMinute) WPM")
@@ -388,3 +429,4 @@ struct ObservatoryScreen: View {
         return session.durationText
     }
 }
+

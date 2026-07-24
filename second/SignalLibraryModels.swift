@@ -1,6 +1,6 @@
 import Foundation
 
-enum SignalLibraryDomain: String, Codable, CaseIterable {
+enum SignalLibraryDomain: String, Codable, CaseIterable, Hashable {
     case cognitive = "Cognitive"
     case language = "Language"
     case voice = "Voice"
@@ -10,14 +10,14 @@ enum SignalLibraryDomain: String, Codable, CaseIterable {
     case custom = "Custom"
 }
 
-enum SignalRuleMatchType: String, Codable, CaseIterable {
+enum SignalRuleMatchType: String, Codable, CaseIterable, Hashable {
     case containsAny = "Contains Any"
     case containsAll = "Contains All"
     case repeatedPhrase = "Repeated Phrase"
     case sequence = "Sequence"
 }
 
-enum SignalLibraryAuthorType: String, Codable, CaseIterable {
+enum SignalLibraryAuthorType: String, Codable, CaseIterable, Hashable {
     case observatory = "Observatory"
     case user = "User"
     case moderator = "Moderator"

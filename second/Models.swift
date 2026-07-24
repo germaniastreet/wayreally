@@ -13,7 +13,7 @@ enum SignalSource: String, Codable {
     case derived
 }
 
-enum SignalQuality: String, Codable {
+enum SignalQuality: String, Codable, Hashable {
     case high
     case medium
     case low
@@ -26,7 +26,7 @@ enum ReflectionState: String, Codable {
     case completed
 }
 
-enum ObservationCategory: String, Codable, CaseIterable {
+enum ObservationCategory: String, Codable, CaseIterable, Hashable {
     case language = "Language"
     case voice = "Voice"
     case cognitive = "Cognitive"
@@ -35,7 +35,7 @@ enum ObservationCategory: String, Codable, CaseIterable {
     case environment = "Environment"
 }
 
-enum ObservationEventKind: String, Codable {
+enum ObservationEventKind: String, Codable, Hashable {
     case pauseGap
     case breathCue
     case stressLanguage
@@ -76,7 +76,7 @@ struct ObservationEvent: Identifiable, Codable {
     var engineVersion: String
 }
 
-enum DynamicsPatternKind: String, Codable {
+enum DynamicsPatternKind: String, Codable, Hashable {
     case emotionalClarification
     case emotionalAmbivalence
     case regulationEffort
@@ -102,7 +102,7 @@ struct DynamicsPattern: Identifiable, Codable {
     var engineVersion: String
 }
 
-enum ObservationCorrelationKind: String, Codable {
+enum ObservationCorrelationKind: String, Codable, Hashable {
     case emotionalClarification
     case reflectiveProcessing
     case possibleSelfRegulation
@@ -181,7 +181,7 @@ struct TranscriptEvent: Identifiable, Codable {
     var source: SignalSource
 }
 
-enum Speaker: String, Codable {
+enum Speaker: String, Codable, Hashable {
     case user = "You"
     case other = "They"
 }
