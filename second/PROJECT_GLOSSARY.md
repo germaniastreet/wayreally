@@ -1,4 +1,4 @@
-# Observatory — Project Glossary
+# WayReally — Project Glossary
 ## Source of Truth • v0.2 • 2026-06-23
 
 | Term | Definition |

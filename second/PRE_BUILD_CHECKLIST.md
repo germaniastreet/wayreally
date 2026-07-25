@@ -1,4 +1,4 @@
-# Observatory — Pre-Build Checklist
+# WayReally — Pre-Build Checklist
 ## Required before every version
 
 ### Scope
