@@ -1,76 +1,37 @@
 import SwiftUI
 
+/// Reflection history now lives on the Observatory tab as an expandable
+/// list, so this tab no longer shows it (that used to duplicate the same
+/// content across two tabs). Kept as its own tab, as a placeholder, until
+/// it's repurposed for something new.
 struct ReflectionTimelineScreen: View {
-    @EnvironmentObject private var store: ReflectionSessionStore
-
     var body: some View {
         NavigationStack {
             ZStack {
                 SecondTheme.background.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ScreenHeader(title: "Timeline", subtitle: "Reflection history")
+                VStack(spacing: 16) {
+                    Spacer()
 
-                        PickerRow()
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 56))
+                        .foregroundStyle(SecondTheme.secondaryText)
 
-                        VStack(spacing: 12) {
-                            if store.completedSessions.isEmpty {
-                                AppCard(title: "No Reflections Yet") {
-                                    Text("Record your first reflection from the Observatory or Capture tab. Finished reflections are saved to your device and will appear here.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(SecondTheme.secondaryText)
-                                }
-                            }
+                    Text("Coming Soon")
+                        .font(.title2)
+                        .bold()
+                        .foregroundStyle(SecondTheme.primaryText)
 
-                            ForEach(store.completedSessions) { session in
-                                NavigationLink {
-                                    ReflectionDetailScreen(session: session)
-                                } label: {
-                                    AppCard(title: session.startedAt.formatted(date: .abbreviated, time: .omitted), startsExpanded: true) {
-                                        VStack(alignment: .leading, spacing: 12) {
-                                            HStack {
-                                                VStack(alignment: .leading) {
-                                                    Text(session.title)
-                                                        .font(.headline)
+                    Text("This tab is being reworked into something new. Your reflection history now lives on the Observatory tab.")
+                        .font(.subheadline)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
 
-                                                    Text("\(session.timeRangeText) • \(session.durationText)")
-                                                        .font(.caption)
-                                                        .foregroundStyle(SecondTheme.secondaryText)
-                                                }
-
-                                                Spacer()
-
-                                                Image(systemName: "chevron.right")
-                                                    .foregroundStyle(SecondTheme.secondaryText)
-                                            }
-
-                                            Text(session.observations.first?.detail ?? "No observation yet.")
-                                                .font(.caption)
-                                                .foregroundStyle(SecondTheme.secondaryText)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                    .padding(.bottom, 24)
+                    Spacer()
                 }
             }
+            .navigationTitle("Timeline")
         }
     }
 }
-
-struct PickerRow: View {
-    var body: some View {
-        HStack {
-            Text("All")
-            Spacer()
-        }
-        .font(.caption)
-        .padding(.horizontal)
-    }
-}
-
