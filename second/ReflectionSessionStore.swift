@@ -5,10 +5,24 @@ import Combine
 @MainActor
 final class ReflectionSessionStore: ObservableObject {
     @Published var activeSession: ReflectionSession?
-    @Published var completedSessions: [ReflectionSession] = SampleData.sessions
+
+    /// Persisted to disk on every change (see saveCompletedSessions()) so a
+    /// finished reflection survives an app relaunch, phone restart, or the
+    /// app being terminated in the background. Previously this was in-memory
+    /// only, which meant completed reflections were silently lost the moment
+    /// the app process ended -- see PROJECT_ARCHITECTURE.md section 5.
+    @Published var completedSessions: [ReflectionSession] {
+        didSet {
+            saveCompletedSessions()
+        }
+    }
 
     private var lastTranscriptUpdateDate: Date?
     private var lastTranscriptText: String = ""
+
+    init() {
+        completedSessions = Self.loadPersistedSessions() ?? SampleData.sessions
+    }
 
     var isRecording: Bool {
         activeSession?.state == .recording
@@ -177,5 +191,60 @@ final class ReflectionSessionStore: ObservableObject {
         lastTranscriptUpdateDate = nil
         lastTranscriptText = ""
     }
+
+    // MARK: - Persistence
+
+    private func saveCompletedSessions() {
+        do {
+            let url = Self.storeURL()
+            let directory = url.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+            let data = try JSONEncoder.reflectionSessionEncoder.encode(completedSessions)
+            try data.write(to: url, options: [.atomic])
+        } catch {
+            print("Reflection session store save failed: \(error.localizedDescription)")
+        }
+    }
+
+    private static func loadPersistedSessions() -> [ReflectionSession]? {
+        let url = storeURL()
+
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let decoded = try JSONDecoder.reflectionSessionDecoder.decode([ReflectionSession].self, from: data)
+            return decoded.isEmpty ? nil : decoded
+        } catch {
+            print("Reflection session store load failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private static func storeURL() -> URL {
+        let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+
+        return baseURL
+            .appendingPathComponent("WayReally", isDirectory: true)
+            .appendingPathComponent("completed_reflections_v1.json")
+    }
 }
 
+private extension JSONEncoder {
+    static var reflectionSessionEncoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+}
+
+private extension JSONDecoder {
+    static var reflectionSessionDecoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+}
