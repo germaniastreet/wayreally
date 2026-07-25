@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AudioCaptureScreen: View {
     @EnvironmentObject private var store: ReflectionSessionStore
@@ -64,6 +65,22 @@ struct AudioCaptureScreen: View {
                     }
                     .padding(.bottom, 24)
                 }
+            }
+            .alert(
+                "Microphone & Speech Access Needed",
+                isPresented: Binding(
+                    get: { speechManager.permissionDenied },
+                    set: { speechManager.permissionDenied = $0 }
+                )
+            ) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Observatory needs both Microphone and Speech Recognition access to capture a reflection. You can turn these on in Settings.")
             }
         }
     }
