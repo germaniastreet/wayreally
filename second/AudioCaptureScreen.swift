@@ -92,6 +92,7 @@ struct AudioCaptureScreen: View {
                     ForEach(session.transcript) { event in
                         Text(event.text)
                             .font(.subheadline)
+                            .foregroundStyle(SecondTheme.primaryText)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

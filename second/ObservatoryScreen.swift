@@ -310,10 +310,12 @@ struct ObservatoryScreen: View {
                         Text(event.speaker.rawValue)
                             .font(.caption)
                             .bold()
+                            .foregroundStyle(SecondTheme.primaryText)
                             .frame(width: 38, alignment: .leading)
 
                         Text(event.text)
                             .font(.subheadline)
+                            .foregroundStyle(SecondTheme.primaryText)
                     }
                 }
             }
