@@ -47,19 +47,21 @@ struct ObservatoryScreen: View {
                 if store.isRecording {
                     liveTranscriptCard(session)
                 } else {
-                    whatsGoingOnCard(session)
-                    reflectionArcCard(session)
-                    suggestedDirectionCard(session)
-                    validationEvidenceCard(session)
-                    diagnosticsCard(session)
+                    // The full breakdown (Reflection Arc, Suggested Direction,
+                    // Evidence, Diagnostics) lives in ReflectionDetailScreen,
+                    // which is also what the Timeline tab opens for this same
+                    // session. Showing it a second time here duplicated that
+                    // content; this card is a compact preview that links to
+                    // the single, shared detail view instead.
+                    completionSummaryCard(session)
                 }
             }
             .padding(.bottom, 24)
         }
     }
 
-    private func whatsGoingOnCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "What's Going On") {
+    private func completionSummaryCard(_ session: ReflectionSession) -> some View {
+        AppCard(title: "Reflection Complete") {
             VStack(alignment: .leading, spacing: 12) {
                 Text(primaryInsight(session))
                     .font(.headline)
@@ -69,213 +71,23 @@ struct ObservatoryScreen: View {
                     .font(.subheadline)
                     .foregroundStyle(SecondTheme.primaryText)
 
-                if observationDetail(session, title: "Key Signals") != "Pending" {
-                    Text("Key signals: \(observationDetail(session, title: "Key Signals"))")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
+                NavigationLink {
+                    ReflectionDetailScreen(session: session)
+                } label: {
+                    HStack {
+                        Text("View Full Reflection Details")
+                            .font(.subheadline)
+                            .bold()
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                    }
+                    .foregroundStyle(SecondTheme.primaryText)
                 }
+                .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal)
-    }
-
-    private func reflectionArcCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Reflection Arc") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(observationDetail(session, title: "Arc Title"))
-                    .font(.title3)
-                    .bold()
-
-                MetricRow(label: "Start", value: observationDetail(session, title: "Arc Start"))
-                MetricRow(label: "Middle", value: observationDetail(session, title: "Arc Middle"))
-                MetricRow(label: "End", value: observationDetail(session, title: "Arc End"))
-
-                Text(observationDetail(session, title: "Reflection Arc"))
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                let keyEvents = observationDetail(session, title: "Arc Key Events")
-                if keyEvents != "Pending" && !keyEvents.isEmpty {
-                    Text("Evidence: \(keyEvents)")
-                        .font(.caption2)
-                        .foregroundStyle(SecondTheme.secondaryText)
-                }
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    private func suggestedDirectionCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Suggested Direction") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(observationDetail(session, title: "Suggested Direction"))
-                    .font(.subheadline)
-
-                Text("Observations are associations, not diagnoses.")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal)
-    }
-
-    private func validationEvidenceCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Validation Evidence", startsExpanded: false) {
-            VStack(alignment: .leading, spacing: 18) {
-                evidenceSectionTitle("Transcript")
-                transcriptView(session)
-
-                Divider()
-
-                evidenceSectionTitle("Observation Events")
-                Text(ObservationEventEngine.eventSummary(session.observationEvents))
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                if session.observationEvents.isEmpty {
-                    Text("No micro-observation events recorded.")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
-                } else {
-                    ForEach(ObservationEventEngine.groupedEvents(session.observationEvents), id: \.category) { group in
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("\(group.category.rawValue) (\(group.events.count))")
-                                .font(.subheadline)
-                                .bold()
-
-                            Text(ObservationEventEngine.categorySummary(group.category, events: group.events))
-                                .font(.caption)
-                                .foregroundStyle(SecondTheme.secondaryText)
-
-                            ForEach(group.events) { event in
-                                observationEventDetail(event)
-                            }
-                        }
-                    }
-                }
-
-                Divider()
-
-                evidenceSectionTitle("Dynamics")
-                Text(DynamicsEngine.summary(session.dynamicsPatterns))
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                if session.dynamicsPatterns.isEmpty {
-                    Text("No dynamics patterns detected yet.")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
-                } else {
-                    ForEach(Array(session.dynamicsPatterns.enumerated()), id: \.offset) { _, pattern in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(pattern.title)
-                                .font(.caption)
-                                .bold()
-
-                            Text(pattern.detail)
-                                .font(.caption)
-                                .foregroundStyle(SecondTheme.secondaryText)
-                        }
-                    }
-                }
-
-                Divider()
-
-                evidenceSectionTitle("Correlations")
-                Text(CorrelationEngine.summary(session.observationCorrelations))
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-
-                if session.observationCorrelations.isEmpty {
-                    Text("No correlations detected yet.")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
-                } else {
-                    ForEach(Array(session.observationCorrelations.enumerated()), id: \.offset) { _, correlation in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(correlation.title)
-                                .font(.caption)
-                                .bold()
-                        }
-                    }
-                }
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    private func observationEventDetail(_ event: ObservationEvent) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text("\(event.timestamp.shortTimeWithSeconds) • \(event.title)")
-                .font(.caption)
-                .bold()
-                .foregroundStyle(SecondTheme.primaryText)
-
-            Text(event.detail)
-                .font(.caption)
-                .foregroundStyle(SecondTheme.secondaryText)
-
-            if let relatedText = event.relatedText, !relatedText.isEmpty {
-                Text("Related: \(relatedText)")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
-            }
-
-            if !event.alternativeExplanations.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Other possible readings:")
-                        .font(.caption2)
-                        .bold()
-                        .foregroundStyle(SecondTheme.secondaryText)
-
-                    ForEach(event.alternativeExplanations, id: \.self) { explanation in
-                        Text("• \(explanation)")
-                            .font(.caption2)
-                            .foregroundStyle(SecondTheme.secondaryText)
-                    }
-                }
-                .padding(.top, 2)
-            }
-        }
-        .padding(.top, 4)
-    }
-
-    private func diagnosticsCard(_ session: ReflectionSession) -> some View {
-        AppCard(title: "Session State", startsExpanded: false) {
-            VStack(spacing: 8) {
-                MetricRow(label: "State", value: session.state.rawValue.capitalized)
-                MetricRow(label: "Boundary", value: session.endedAt == nil ? "Open" : "Closed")
-                MetricRow(label: "Duration", value: session.durationText)
-                MetricRow(label: "Speech rate", value: session.voice.wordsPerMinute == 0 ? "Pending" : "\(session.voice.wordsPerMinute) WPM")
-                MetricRow(label: "Pause gaps", value: session.voice.pauseCount == 0 ? "None detected" : "\(session.voice.pauseCount)")
-                MetricRow(label: "Hesitation markers", value: session.voice.hesitationMarkers == 0 ? "None detected" : "\(session.voice.hesitationMarkers)")
-                MetricRow(label: "Observation engine", value: session.observationEngineVersion)
-                MetricRow(label: "Dynamics engine", value: session.dynamicsEngineVersion)
-                MetricRow(label: "Correlation engine", value: session.correlationEngineVersion)
-                MetricRow(label: "Summary engine", value: ReflectionSummaryEngine.engineVersion)
-                MetricRow(label: "Trajectory engine", value: EmotionalTrajectoryEngine.engineVersion)
-                MetricRow(label: "Arc engine", value: ReflectionArcEngine.engineVersion)
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Body Signals")
-                        .font(.subheadline)
-                        .bold()
-
-                    Text("Body signals from \(session.biometrics.queryStart.shortTimeWithSeconds)–\(session.biometrics.queryEnd.shortTimeWithSeconds)")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
-
-                    Text("No biometric samples attached to this session yet. Watch and HealthKit will be connected in a later build.")
-                        .font(.caption)
-                        .foregroundStyle(SecondTheme.secondaryText)
-
-                    MetricRow(label: "Data quality", value: session.biometrics.quality.rawValue.capitalized)
-                }
-            }
         }
         .padding(.horizontal)
     }
@@ -320,13 +132,6 @@ struct ObservatoryScreen: View {
                 }
             }
         }
-    }
-
-    private func evidenceSectionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.subheadline)
-            .bold()
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func primaryInsight(_ session: ReflectionSession) -> String {
@@ -447,4 +252,3 @@ struct ObservatoryScreen: View {
         return session.durationText
     }
 }
-
