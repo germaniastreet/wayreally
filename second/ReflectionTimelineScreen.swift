@@ -15,6 +15,14 @@ struct ReflectionTimelineScreen: View {
                         PickerRow()
 
                         VStack(spacing: 12) {
+                            if store.completedSessions.isEmpty {
+                                AppCard(title: "No Reflections Yet") {
+                                    Text("Record your first reflection from the Observatory or Capture tab. Finished reflections are saved to your device and will appear here.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(SecondTheme.secondaryText)
+                                }
+                            }
+
                             ForEach(store.completedSessions) { session in
                                 NavigationLink {
                                     ReflectionDetailScreen(session: session)

@@ -21,7 +21,12 @@ final class ReflectionSessionStore: ObservableObject {
     private var lastTranscriptText: String = ""
 
     init() {
-        completedSessions = Self.loadPersistedSessions() ?? SampleData.sessions
+        // Start honestly empty when there's no saved history yet, rather
+        // than showing fabricated demo content that looks indistinguishable
+        // from real personal reflections (see PROJECT_CONSTRAINTS.md honesty
+        // principle -- this was confusing/concerning to a real user in
+        // practice once real data was lost and demo data resurfaced).
+        completedSessions = Self.loadPersistedSessions() ?? []
     }
 
     var isRecording: Bool {
