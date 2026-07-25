@@ -57,38 +57,16 @@ struct ObservatoryScreen: View {
     // MARK: - Controls
 
     private var lifecycleControls: some View {
-        Group {
-            if store.isRecording {
-                HStack(spacing: 12) {
-                    Button {
-                        speechManager.stop()
-                        store.stopAndObserve()
-                    } label: {
-                        Label("Stop & Observe", systemImage: "stop.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-
-                    Button {
-                        speechManager.stop()
-                        store.resetActiveSession()
-                    } label: {
-                        Text("Reset")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding(.horizontal)
-            } else {
-                HoldToStartButton {
-                    startReflectionAndSpeech()
-                }
-                .padding(.top, 4)
-                .padding(.bottom, 4)
-                .frame(maxWidth: .infinity)
+        RecordingControlButton(
+            isRecording: store.isRecording,
+            onStart: { startReflectionAndSpeech() },
+            onStop: {
+                speechManager.stop()
+                store.stopAndObserve()
             }
-        }
+        )
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
     }
 
     private func startReflectionAndSpeech() {
@@ -441,76 +419,96 @@ struct ObservatoryScreen: View {
     }
 }
 
-/// A large record button that only fires after being held for a couple of
-/// seconds, so it can't be triggered by an accidental tap. Gives on-button
-/// text feedback while held ("Hold...", "Starting...", "Now!") so the person
-/// holding it knows to keep their finger down.
-struct HoldToStartButton: View {
-    let action: () -> Void
+/// One circular control that covers both ends of a reflection. Idle, it only
+/// fires after being held for a couple of seconds (so it can't be triggered
+/// by an accidental tap) and shows on-button text feedback while held
+/// ("Hold...", "Starting...", "Now!"). Once recording, the same circle turns
+/// into a plain single-tap Stop button -- stopping shouldn't have the same
+/// friction as starting. Sized at half of its original size in every state,
+/// including the in-between hold states, per request.
+struct RecordingControlButton: View {
+    let isRecording: Bool
+    let onStart: () -> Void
+    let onStop: () -> Void
 
     @State private var isPressing = false
     @State private var holdElapsed: Double = 0
 
     private let holdDuration: Double = 2.0
     private let tickInterval: Double = 0.05
+    private let diameter: CGFloat = 70
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(SecondTheme.heartRate)
-                .frame(width: 140, height: 140)
-
-            Circle()
-                .trim(from: 0, to: min(holdElapsed / holdDuration, 1.0))
-                .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .frame(width: 140, height: 140)
-
-            VStack(spacing: 8) {
-                Image(systemName: "record.circle")
-                    .font(.system(size: 34))
-
-                Text(feedbackText)
-                    .font(.caption)
-                    .bold()
-                    .multilineTextAlignment(.center)
-                    .frame(width: 100)
-            }
-            .foregroundStyle(.white)
-        }
-        .contentShape(Circle())
-        .onLongPressGesture(
-            minimumDuration: holdDuration,
-            maximumDistance: 60,
-            pressing: { pressing in
-                isPressing = pressing
-                if !pressing && holdElapsed < holdDuration {
-                    holdElapsed = 0
+        Group {
+            if isRecording {
+                Button(action: onStop) {
+                    face(icon: "stop.fill", label: "Stop", fill: Color.red.opacity(0.9), progress: 0)
                 }
-            },
-            perform: {
-                holdElapsed = holdDuration
-                action()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    holdElapsed = 0
-                    isPressing = false
-                }
+                .buttonStyle(.plain)
+            } else {
+                face(icon: "record.circle", label: startLabel, fill: SecondTheme.heartRate, progress: min(holdElapsed / holdDuration, 1.0))
+                    .contentShape(Circle())
+                    .onLongPressGesture(
+                        minimumDuration: holdDuration,
+                        maximumDistance: 60,
+                        pressing: { pressing in
+                            isPressing = pressing
+                            if !pressing && holdElapsed < holdDuration {
+                                holdElapsed = 0
+                            }
+                        },
+                        perform: {
+                            holdElapsed = holdDuration
+                            onStart()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                                holdElapsed = 0
+                                isPressing = false
+                            }
+                        }
+                    )
+                    .onReceive(Timer.publish(every: tickInterval, on: .main, in: .common).autoconnect()) { _ in
+                        guard isPressing, holdElapsed < holdDuration else { return }
+                        holdElapsed = min(holdElapsed + tickInterval, holdDuration)
+                    }
             }
-        )
-        .onReceive(Timer.publish(every: tickInterval, on: .main, in: .common).autoconnect()) { _ in
-            guard isPressing, holdElapsed < holdDuration else { return }
-            holdElapsed = min(holdElapsed + tickInterval, holdDuration)
         }
-        .accessibilityLabel("Hold for two seconds to start a reflection")
+        .accessibilityLabel(isRecording ? "Stop reflection" : "Hold for two seconds to start a reflection")
     }
 
-    private var feedbackText: String {
+    private var startLabel: String {
         if holdElapsed >= holdDuration {
             return "Now!"
         } else if isPressing {
             return "Starting..."
         } else {
-            return "Hold to\nStart Reflection"
+            return "Hold to\nStart"
+        }
+    }
+
+    private func face(icon: String, label: String, fill: Color, progress: Double) -> some View {
+        ZStack {
+            Circle()
+                .fill(fill)
+                .frame(width: diameter, height: diameter)
+
+            if progress > 0 {
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: diameter, height: diameter)
+            }
+
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 17))
+
+                Text(label)
+                    .font(.system(size: 9, weight: .bold))
+                    .multilineTextAlignment(.center)
+                    .frame(width: 50)
+            }
+            .foregroundStyle(.white)
         }
     }
 }
