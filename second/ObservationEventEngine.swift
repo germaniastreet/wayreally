@@ -1,7 +1,7 @@
 import Foundation
 
 enum ObservationEventEngine {
-    static let engineVersion = "1.4"
+    static let engineVersion = "1.5"
 
     static func enrich(session: ReflectionSession) -> [ObservationEvent] {
         var events = session.observationEvents
@@ -20,7 +20,11 @@ enum ObservationEventEngine {
                 source: .transcript,
                 confidence: .medium,
                 relatedText: matchingPhrase(in: text, terms: ["deep breath", "breath", "breathe", "inhale", "exhale", "sigh"]),
-                tags: ["breath", "regulation", "body-signal-candidate"]
+                tags: ["breath", "regulation", "body-signal-candidate"],
+                alternativeExplanations: [
+                    "Could be a literal, unrelated mention of breathing (e.g. exercise, illness) rather than emotional regulation.",
+                    "Could be describing someone else's breathing, not the speaker's own."
+                ]
             )
         }
 
@@ -35,7 +39,12 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .medium,
                 relatedText: matchingPhrase(in: text, terms: ["stress", "stressed", "tension", "tense", "nervous", "anxious", "overwhelmed"]),
-                tags: ["stress", "activation", "mood"]
+                tags: ["stress", "activation", "mood"],
+                alternativeExplanations: [
+                    "Could describe a past or hypothetical situation rather than the speaker's current state.",
+                    "Could be attributed to someone else (e.g. \"my coworker was stressed\") rather than self-reported.",
+                    "Could be used casually/idiomatically without indicating real emotional activation."
+                ]
             )
         }
 
@@ -50,7 +59,11 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .medium,
                 relatedText: matchingPhrase(in: text, terms: ["fight", "fighting", "conflict", "argument", "escalate", "escalation", "out of hand"]),
-                tags: ["conflict", "interpersonal", "escalation"]
+                tags: ["conflict", "interpersonal", "escalation"],
+                alternativeExplanations: [
+                    "Could refer to a resolved or historical conflict rather than an active one.",
+                    "\"Fight\" or \"fighting\" could be used non-literally (e.g. \"fighting for a promotion\") without interpersonal conflict."
+                ]
             )
         }
 
@@ -65,7 +78,11 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .medium,
                 relatedText: matchingPhrase(in: text, terms: ["i don't know", "i dont know", "unclear", "confused", "not sure", "maybe", "why"]),
-                tags: ["uncertainty", "sense-making", "confidence-candidate"]
+                tags: ["uncertainty", "sense-making", "confidence-candidate"],
+                alternativeExplanations: [
+                    "Could be a rhetorical or conversational filler rather than genuine uncertainty.",
+                    "\"Why\" may simply be part of a question about someone/something else, not self-reflection."
+                ]
             )
         }
 
@@ -81,7 +98,10 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .medium,
                 relatedText: nil,
-                tags: ["questioning", "sense-making"]
+                tags: ["questioning", "sense-making"],
+                alternativeExplanations: [
+                    "Questions may be addressed to someone else in the room rather than posed reflectively to oneself."
+                ]
             )
         }
 
@@ -96,7 +116,11 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .medium,
                 relatedText: matchingPhrase(in: text, terms: ["calm", "keep it cool", "cool", "friendly", "de-escalate", "deescalate", "didn't say", "did not say", "hold back"]),
-                tags: ["regulation", "restraint", "de-escalation"]
+                tags: ["regulation", "restraint", "de-escalation"],
+                alternativeExplanations: [
+                    "\"Cool\" or \"calm\" may describe weather, temperature, or an unrelated topic rather than emotional regulation.",
+                    "Could describe someone else's regulation attempt, not the speaker's own."
+                ]
             )
         }
 
@@ -111,7 +135,11 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .low,
                 relatedText: matchingPhrase(in: text, terms: ["maybe", "perhaps", "sort of", "kind of", "i guess", "probably", "possibly"]),
-                tags: ["qualification", "uncertainty", "confidence-candidate"]
+                tags: ["qualification", "uncertainty", "confidence-candidate"],
+                alternativeExplanations: [
+                    "Could be a habitual speech pattern or verbal tic rather than genuine hedging.",
+                    "May reflect politeness/softening norms rather than actual uncertainty."
+                ]
             )
         }
 
@@ -126,7 +154,11 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .low,
                 relatedText: matchingPhrase(in: text, terms: ["definitely", "absolutely", "certainly", "without question", "for sure", "no doubt"]),
-                tags: ["certainty", "confidence-candidate"]
+                tags: ["certainty", "confidence-candidate"],
+                alternativeExplanations: [
+                    "Could be applied to a minor/low-stakes topic rather than signaling strong conviction overall.",
+                    "May be used for emphasis or as a verbal habit rather than reflecting actual certainty."
+                ]
             )
         }
 
@@ -141,7 +173,10 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .low,
                 relatedText: matchingPhrase(in: text, terms: ["actually", "i mean", "rather", "what i mean", "let me say that differently"]),
-                tags: ["self-correction", "speech-construction", "confidence-candidate"]
+                tags: ["self-correction", "speech-construction", "confidence-candidate"],
+                alternativeExplanations: [
+                    "\"Actually\" or \"I mean\" are common filler transitions and may not reflect a genuine correction of meaning."
+                ]
             )
         }
 
@@ -156,7 +191,10 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .low,
                 relatedText: matchingPhrase(in: text, terms: ["i was going to", "what i was trying to say", "let me start", "start over", "wait"]),
-                tags: ["false-start", "speech-construction", "hesitation"]
+                tags: ["false-start", "speech-construction", "hesitation"],
+                alternativeExplanations: [
+                    "\"Wait\" may be used to mean \"hold on, one moment\" rather than restarting a thought."
+                ]
             )
         }
 
@@ -171,7 +209,10 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .medium,
                 relatedText: matchingPhrase(in: text, terms: ["i don't know if i'm", "i dont know if im", "i don't know whether i'm", "am i angry", "am i sad", "or maybe", "or frustrated", "or disappointed"]),
-                tags: ["emotion-search", "emotional-granularity", "sense-making"]
+                tags: ["emotion-search", "emotional-granularity", "sense-making"],
+                alternativeExplanations: [
+                    "Could be asking about someone else's emotional state rather than the speaker's own."
+                ]
             )
         }
 
@@ -187,7 +228,11 @@ enum ObservationEventEngine {
                 source: .observationEngine,
                 confidence: .low,
                 relatedText: repeated.joined(separator: ", "),
-                tags: ["repetition", "speech-construction", "emphasis"]
+                tags: ["repetition", "speech-construction", "emphasis"],
+                alternativeExplanations: [
+                    "Repetition can also come from speech-to-text stutter/glitch artifacts rather than the speaker actually repeating themselves.",
+                    "May simply be a natural speech pattern rather than a sign of emphasis or activation."
+                ]
             )
         }
 
@@ -264,7 +309,8 @@ enum ObservationEventEngine {
         source: SignalSource,
         confidence: SignalQuality,
         relatedText: String?,
-        tags: [String]
+        tags: [String],
+        alternativeExplanations: [String] = []
     ) {
         guard !events.contains(where: { $0.kind == kind && $0.title == title }) else { return }
 
@@ -279,6 +325,7 @@ enum ObservationEventEngine {
                 confidence: confidence,
                 relatedText: relatedText,
                 tags: tags,
+                alternativeExplanations: alternativeExplanations,
                 engineVersion: engineVersion
             )
         )
@@ -319,5 +366,3 @@ enum ObservationEventEngine {
         return repeated
     }
 }
-
-

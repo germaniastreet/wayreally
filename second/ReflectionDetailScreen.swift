@@ -171,6 +171,14 @@ struct ReflectionDetailScreen: View {
                                         .foregroundStyle(SecondTheme.secondaryText)
                                         .lineLimit(2)
                                 }
+
+                                if !event.alternativeExplanations.isEmpty {
+                                    Text("Other readings: " + event.alternativeExplanations.joined(separator: " · "))
+                                        .font(.caption2)
+                                        .italic()
+                                        .foregroundStyle(SecondTheme.secondaryText)
+                                        .lineLimit(3)
+                                }
                             }
                         }
                     }

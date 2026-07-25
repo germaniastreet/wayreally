@@ -73,6 +73,14 @@ struct ObservationEvent: Identifiable, Codable {
     var confidence: SignalQuality
     var relatedText: String?
     var tags: [String]
+
+    /// Other plausible readings of the same evidence, so a reflection never
+    /// presents a single interpretation as the only possible one. Populated
+    /// by whichever engine creates the event; empty means none were authored
+    /// for this observation kind yet, not that none exist. See
+    /// PROJECT_CONSTRAINTS.md #6 and PROJECT_ARCHITECTURE.md section 7.
+    var alternativeExplanations: [String] = []
+
     var engineVersion: String
 }
 

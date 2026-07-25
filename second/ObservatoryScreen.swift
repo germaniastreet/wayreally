@@ -222,6 +222,22 @@ struct ObservatoryScreen: View {
                     .font(.caption)
                     .foregroundStyle(SecondTheme.secondaryText)
             }
+
+            if !event.alternativeExplanations.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Other possible readings:")
+                        .font(.caption2)
+                        .bold()
+                        .foregroundStyle(SecondTheme.secondaryText)
+
+                    ForEach(event.alternativeExplanations, id: \.self) { explanation in
+                        Text("• \(explanation)")
+                            .font(.caption2)
+                            .foregroundStyle(SecondTheme.secondaryText)
+                    }
+                }
+                .padding(.top, 2)
+            }
         }
         .padding(.top, 4)
     }
