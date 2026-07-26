@@ -153,11 +153,17 @@ final class SpeechRecognitionManager: ObservableObject {
                 }
             }
 
+            // Captured as a local constant rather than reached for via `self`
+            // inside the closure below -- this tap callback fires on a
+            // real-time audio thread, not the main actor this class is
+            // otherwise isolated to, so it must not touch `self` directly.
+            let fileForThisSegment = audioFile
+
             inputNode.removeTap(onBus: 0)
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
                 request.append(buffer)
-                if let audioFile = self?.audioFile {
-                    try? audioFile.write(from: buffer)
+                if let fileForThisSegment {
+                    try? fileForThisSegment.write(from: buffer)
                 }
             }
 
