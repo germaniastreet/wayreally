@@ -370,6 +370,10 @@ struct ObservatoryScreen: View {
                 label: "Consent acknowledged",
                 value: session.consentAcknowledgedAt.map { $0.shortTimeWithSeconds } ?? "Not recorded"
             )
+            MetricRow(
+                label: "Speaker identification",
+                value: session.diarizationEngineVersion.map { "v\($0)" } ?? "Not yet run"
+            )
             MetricRow(label: "Duration", value: session.durationText)
             MetricRow(label: "Speech rate", value: session.voice.wordsPerMinute == 0 ? "Pending" : "\(session.voice.wordsPerMinute) WPM")
             MetricRow(label: "Pause gaps", value: session.voice.pauseCount == 0 ? "None detected" : "\(session.voice.pauseCount)")

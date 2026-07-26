@@ -202,6 +202,34 @@ final class ReflectionSessionStore: ObservableObject {
 
         completedSessions.insert(session, at: 0)
         activeSession = session
+
+        // Speaker identification runs after the fact, on the audio file
+        // SpeechRecognitionManager saved alongside the transcript -- it can
+        // take a moment (on-device ML inference), so it happens here as a
+        // background step rather than blocking Stop & Observe. Every
+        // transcript entry starts as `.user`; this only changes that if
+        // diarization actually finds more than one voice.
+        let sessionForDiarization = session
+        Task {
+            let labeled = await SpeakerDiarizationEngine.label(session: sessionForDiarization)
+            self.applyDiarizedTranscript(labeled)
+        }
+    }
+
+    /// Patches in speaker labels found by SpeakerDiarizationEngine after the
+    /// fact. Only ever touches transcript speaker tags and the diarization
+    /// engine version -- never re-runs the analysis engines, which already
+    /// ran against the transcript at Stop time.
+    private func applyDiarizedTranscript(_ labeled: ReflectionSession) {
+        if let index = completedSessions.firstIndex(where: { $0.id == labeled.id }) {
+            completedSessions[index].transcript = labeled.transcript
+            completedSessions[index].diarizationEngineVersion = labeled.diarizationEngineVersion
+        }
+
+        if activeSession?.id == labeled.id {
+            activeSession?.transcript = labeled.transcript
+            activeSession?.diarizationEngineVersion = labeled.diarizationEngineVersion
+        }
     }
 
     func resetActiveSession() {

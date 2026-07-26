@@ -12,9 +12,9 @@ enum SampleData {
     static var transcript: [TranscriptEvent] {
         [
             TranscriptEvent(timestamp: sessionStart.addingTimeInterval(60), speaker: .user, text: "I feel overwhelmed lately.", source: .transcript),
-            TranscriptEvent(timestamp: sessionStart.addingTimeInterval(210), speaker: .other, text: "Tell me more about that.", source: .transcript),
+            TranscriptEvent(timestamp: sessionStart.addingTimeInterval(210), speaker: .other("They"), text: "Tell me more about that.", source: .transcript),
             TranscriptEvent(timestamp: sessionStart.addingTimeInterval(480), speaker: .user, text: "It has been hard to stay focused.", source: .transcript),
-            TranscriptEvent(timestamp: sessionStart.addingTimeInterval(720), speaker: .other, text: "That makes sense.", source: .transcript),
+            TranscriptEvent(timestamp: sessionStart.addingTimeInterval(720), speaker: .other("They"), text: "That makes sense.", source: .transcript),
             TranscriptEvent(timestamp: sessionStart.addingTimeInterval(980), speaker: .user, text: "I just want some clarity.", source: .transcript)
         ]
     }

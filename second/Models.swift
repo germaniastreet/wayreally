@@ -171,6 +171,12 @@ struct ReflectionSession: Identifiable, Codable {
     /// recorded before this existed, or if writing the file failed.
     var audioFileName: String? = nil
 
+    /// Set once SpeakerDiarizationEngine has (attempted to) re-label this
+    /// session's transcript by speaker. nil means diarization hasn't run yet
+    /// (or failed) -- the transcript is still whatever
+    /// SpeechRecognitionManager originally produced (all `.user`).
+    var diarizationEngineVersion: String? = nil
+
     var durationSeconds: Int {
         let end = endedAt ?? Date()
         return max(0, Int(end.timeIntervalSince(startedAt)))
@@ -202,9 +208,59 @@ struct TranscriptEvent: Identifiable, Codable {
     var source: SignalSource
 }
 
-enum Speaker: String, Codable, Hashable {
-    case user = "You"
-    case other = "They"
+/// Not a fixed two-party enum -- `.other` carries a label (e.g. "Speaker 2",
+/// "Speaker 3") so a reflection can capture more than one other person, once
+/// SpeakerDiarizationEngine has told the voices apart. `.user` still
+/// specifically means "you, the device owner" -- diarization only tells
+/// voices apart, it doesn't know which one is the phone's owner, so a
+/// transcript stays entirely `.user` until diarization actually finds more
+/// than one voice in the recording.
+enum Speaker: Codable, Hashable {
+    case user
+    case other(String)
+
+    /// Kept as a computed property (rather than RawRepresentable) so every
+    /// existing `.rawValue` call site across the app keeps compiling exactly
+    /// as before.
+    var rawValue: String {
+        switch self {
+        case .user: return "You"
+        case .other(let label): return label
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, label
+    }
+
+    init(from decoder: Decoder) throws {
+        // Backward compatible with reflections saved before this changed --
+        // Speaker used to be a plain String-backed enum ("You"/"They").
+        if let single = try? decoder.singleValueContainer(),
+           let legacy = try? single.decode(String.self) {
+            self = (legacy == "You") ? .user : .other(legacy)
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(String.self, forKey: .kind)
+        if kind == "user" {
+            self = .user
+        } else {
+            self = .other(try container.decode(String.self, forKey: .label))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .user:
+            try container.encode("user", forKey: .kind)
+        case .other(let label):
+            try container.encode("other", forKey: .kind)
+            try container.encode(label, forKey: .label)
+        }
+    }
 }
 
 struct BiometricSample: Identifiable, Codable {
