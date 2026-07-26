@@ -5,6 +5,8 @@ struct AudioCaptureScreen: View {
     @EnvironmentObject private var store: ReflectionSessionStore
     @EnvironmentObject private var speechManager: SpeechRecognitionManager
 
+    @State private var pendingConsentConfirmation = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -43,7 +45,7 @@ struct AudioCaptureScreen: View {
                                         }
                                     } else {
                                         CaptureButton(icon: "record.circle", label: "Start", color: SecondTheme.background) {
-                                            startCapture()
+                                            pendingConsentConfirmation = true
                                         }
                                     }
                                 }
@@ -82,6 +84,18 @@ struct AudioCaptureScreen: View {
             } message: {
                 Text("Observatory needs both Microphone and Speech Recognition access to capture a reflection. You can turn these on in Settings.")
             }
+            .confirmationDialog(
+                "Before You Start",
+                isPresented: $pendingConsentConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Start Recording") {
+                    startCapture()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("If anyone besides you will be part of this reflection, make sure they know it's being recorded and have agreed to it.")
+            }
         }
     }
 
@@ -105,13 +119,18 @@ struct AudioCaptureScreen: View {
     }
 
     private func startCapture() {
+        // Captured at the moment consent was confirmed, not whenever
+        // permissions/setup happen to finish, so this timestamp is an
+        // honest record of when the person actually agreed to start.
+        let consentTimestamp = Date()
+
         Task {
             let allowed = await speechManager.requestPermissions()
             guard allowed else { return }
 
-            store.startReflection()
+            let audioFileName = store.startReflection(consentAcknowledgedAt: consentTimestamp)
 
-            speechManager.start { text in
+            speechManager.start(audioFileName: audioFileName) { text in
                 store.updateLiveTranscript(text)
             }
         }

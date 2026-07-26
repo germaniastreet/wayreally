@@ -17,6 +17,12 @@ final class SpeechRecognitionManager: ObservableObject {
     private var isStoppingIntentionally = false
     private var lastNonEmptyTranscript = ""
 
+    /// This reflection's raw audio, written alongside the live speech-to-text
+    /// so a later step (speaker diarization) has real audio to work from --
+    /// SFSpeechRecognizer only ever gives us text back, never the audio.
+    private var audioFile: AVAudioFile?
+    private var pendingAudioFileURL: URL?
+
     /// Everything finalized from earlier listening segments in this recording.
     /// Apple's speech engine ends a "segment" (an SFSpeechRecognitionTask) on
     /// its own after roughly a minute of continuous speech, and an
@@ -78,15 +84,27 @@ final class SpeechRecognitionManager: ObservableObject {
         return true
     }
 
-    func start(onTranscript: @escaping @MainActor (String) -> Void) {
+    func start(audioFileName: String, onTranscript: @escaping @MainActor (String) -> Void) {
         currentOnTranscript = onTranscript
         accumulatedTranscript = ""
         lastNonEmptyTranscript = ""
         liveTranscript = ""
         isStoppingIntentionally = false
         wasRecordingBeforeInterruption = false
+        audioFile = nil
+        pendingAudioFileURL = Self.audioFileURL(named: audioFileName)
 
         beginListeningSegment()
+    }
+
+    private static func audioFileURL(named fileName: String) -> URL {
+        let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+
+        return baseURL
+            .appendingPathComponent("WayReally", isDirectory: true)
+            .appendingPathComponent("Audio", isDirectory: true)
+            .appendingPathComponent(fileName)
     }
 
     /// Starts (or restarts) one listening segment. Safe to call whether or
@@ -120,9 +138,27 @@ final class SpeechRecognitionManager: ObservableObject {
             let inputNode = audioEngine.inputNode
             let recordingFormat = inputNode.outputFormat(forBus: 0)
 
+            if audioFile == nil, let pendingAudioFileURL {
+                do {
+                    try FileManager.default.createDirectory(
+                        at: pendingAudioFileURL.deletingLastPathComponent(),
+                        withIntermediateDirectories: true
+                    )
+                    audioFile = try AVAudioFile(forWriting: pendingAudioFileURL, settings: recordingFormat.settings)
+                } catch {
+                    // Live transcription still works without this -- diarization
+                    // just won't have audio to work from for this reflection.
+                    print("Reflection audio recording failed to open: \(error.localizedDescription)")
+                    audioFile = nil
+                }
+            }
+
             inputNode.removeTap(onBus: 0)
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
                 request.append(buffer)
+                if let audioFile = self?.audioFile {
+                    try? audioFile.write(from: buffer)
+                }
             }
 
             audioEngine.prepare()
@@ -259,6 +295,11 @@ final class SpeechRecognitionManager: ObservableObject {
         recognitionRequest = nil
         recognitionTask = nil
         isRecording = false
+
+        // AVAudioFile has no explicit close() -- releasing it finalizes the
+        // file on disk.
+        audioFile = nil
+        pendingAudioFileURL = nil
 
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)

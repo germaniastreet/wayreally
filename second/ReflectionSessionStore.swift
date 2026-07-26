@@ -33,14 +33,21 @@ final class ReflectionSessionStore: ObservableObject {
         activeSession?.state == .recording
     }
 
-    func startReflection() {
+    /// Starts a new reflection. `consentAcknowledgedAt` is the moment the
+    /// person confirmed (via the confirmation prompt) that anyone else being
+    /// recorded knows about it and agreed -- stored on the session as part
+    /// of its evidence trail. Returns the filename SpeechRecognitionManager
+    /// should record this reflection's raw audio to, so both sides agree on
+    /// where it lives without any extra round trip after stopping.
+    @discardableResult
+    func startReflection(consentAcknowledgedAt: Date) -> String {
         let start = Date()
         lastTranscriptUpdateDate = nil
         lastTranscriptText = ""
 
         let emptyWindow = BiometricWindow(queryStart: start, queryEnd: start, samples: [], quality: .unavailable)
 
-        activeSession = ReflectionSession(
+        var session = ReflectionSession(
             title: "Live Reflection",
             startedAt: start,
             endedAt: nil,
@@ -54,8 +61,14 @@ final class ReflectionSessionStore: ObservableObject {
             dynamicsEngineVersion: DynamicsEngine.engineVersion,
             correlationEngineVersion: CorrelationEngine.engineVersion,
             biometrics: emptyWindow,
-            voice: VoiceSignals(wordsPerMinute: 0, pauseCount: 0, hesitationMarkers: 0, durationSeconds: 0)
+            voice: VoiceSignals(wordsPerMinute: 0, pauseCount: 0, hesitationMarkers: 0, durationSeconds: 0),
+            consentAcknowledgedAt: consentAcknowledgedAt
         )
+
+        let audioFileName = "\(session.id.uuidString).caf"
+        session.audioFileName = audioFileName
+        activeSession = session
+        return audioFileName
     }
 
     func updateLiveTranscript(_ text: String) {

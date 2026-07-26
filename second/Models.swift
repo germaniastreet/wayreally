@@ -158,6 +158,19 @@ struct ReflectionSession: Identifiable, Codable {
     var biometrics: BiometricWindow
     var voice: VoiceSignals
 
+    /// Set when the person recording confirmed, before this reflection
+    /// started, that anyone else being recorded knows about it and agreed.
+    /// Part of the same evidence trail as everything else on this session --
+    /// see PROJECT_CONSTRAINTS.md and the consent-law research behind this.
+    var consentAcknowledgedAt: Date? = nil
+
+    /// Filename (not a full path) of this reflection's raw audio recording
+    /// under Application Support/WayReally/Audio/, if one was captured.
+    /// Kept separate from the JSON session store so a large audio file isn't
+    /// duplicated into every session-list read/write. nil for reflections
+    /// recorded before this existed, or if writing the file failed.
+    var audioFileName: String? = nil
+
     var durationSeconds: Int {
         let end = endedAt ?? Date()
         return max(0, Int(end.timeIntervalSince(startedAt)))

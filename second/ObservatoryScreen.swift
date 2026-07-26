@@ -14,6 +14,8 @@ struct ObservatoryScreen: View {
     /// or stopping a reflection from either tab controls the same recording.
     @EnvironmentObject private var speechManager: SpeechRecognitionManager
 
+    @State private var pendingConsentConfirmation = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -51,6 +53,18 @@ struct ObservatoryScreen: View {
                     .padding(.bottom, 24)
                 }
             }
+            .confirmationDialog(
+                "Before You Start",
+                isPresented: $pendingConsentConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Start Recording") {
+                    startReflectionAndSpeech()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("If anyone besides you will be part of this reflection, make sure they know it's being recorded and have agreed to it.")
+            }
         }
     }
 
@@ -59,7 +73,7 @@ struct ObservatoryScreen: View {
     private var lifecycleControls: some View {
         RecordingControlButton(
             isRecording: store.isRecording,
-            onStart: { startReflectionAndSpeech() },
+            onStart: { pendingConsentConfirmation = true },
             onStop: {
                 speechManager.stop()
                 store.stopAndObserve()
@@ -70,13 +84,18 @@ struct ObservatoryScreen: View {
     }
 
     private func startReflectionAndSpeech() {
+        // Captured at the moment consent was confirmed, not whenever
+        // permissions/setup happen to finish, so this timestamp is an
+        // honest record of when the person actually agreed to start.
+        let consentTimestamp = Date()
+
         Task {
             let allowed = await speechManager.requestPermissions()
             guard allowed else { return }
 
-            store.startReflection()
+            let audioFileName = store.startReflection(consentAcknowledgedAt: consentTimestamp)
 
-            speechManager.start { text in
+            speechManager.start(audioFileName: audioFileName) { text in
                 store.updateLiveTranscript(text)
             }
         }
@@ -347,6 +366,10 @@ struct ObservatoryScreen: View {
         VStack(spacing: 8) {
             MetricRow(label: "State", value: session.state.rawValue.capitalized)
             MetricRow(label: "Boundary", value: session.endedAt == nil ? "Open" : "Closed")
+            MetricRow(
+                label: "Consent acknowledged",
+                value: session.consentAcknowledgedAt.map { $0.shortTimeWithSeconds } ?? "Not recorded"
+            )
             MetricRow(label: "Duration", value: session.durationText)
             MetricRow(label: "Speech rate", value: session.voice.wordsPerMinute == 0 ? "Pending" : "\(session.voice.wordsPerMinute) WPM")
             MetricRow(label: "Pause gaps", value: session.voice.pauseCount == 0 ? "None detected" : "\(session.voice.pauseCount)")
