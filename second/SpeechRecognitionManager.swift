@@ -41,8 +41,8 @@ final class SpeechRecognitionManager: ObservableObject {
             forName: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance(),
             queue: .main
-        ) { [weak self] notification in
-            Task { @MainActor in
+        ) { notification in
+            Task { @MainActor [weak self] in
                 self?.handleInterruption(notification)
             }
         }
@@ -174,8 +174,8 @@ final class SpeechRecognitionManager: ObservableObject {
             statusMessage = "Listening."
             lastNonEmptyTranscript = ""
 
-            recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
-                Task { @MainActor in
+            recognitionTask = speechRecognizer.recognitionTask(with: request) { result, error in
+                Task { @MainActor [weak self] in
                     self?.handleRecognition(result: result, error: error)
                 }
             }
