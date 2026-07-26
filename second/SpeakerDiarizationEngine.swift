@@ -1,5 +1,6 @@
 import Foundation
 import SpeakerKit
+import WhisperKit // AudioProcessor.loadAudioAsFloatArray lives here, not in SpeakerKit itself
 
 /// Runs after a reflection is stopped, using the raw audio file saved by
 /// SpeechRecognitionManager to figure out which parts of the transcript came
