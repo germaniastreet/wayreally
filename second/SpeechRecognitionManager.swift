@@ -10,12 +10,32 @@ final class SpeechRecognitionManager: ObservableObject {
     @Published var statusMessage = "Speech not started."
     @Published var permissionDenied = false
 
+    /// One chunk of recognized speech with real audio-relative timing.
+    /// `start`/`end` are derived from SFSpeechRecognizer's own
+    /// `SFTranscriptionSegment.timestamp`/`.duration` (positions within the
+    /// recognizer's own audio stream), not from when this app's callback
+    /// happened to be scheduled -- so unlike timing based on callback
+    /// arrival, these hold up as real time boundaries even under CPU or
+    /// dispatch-queue jitter. This is what makes it possible for
+    /// SpeakerDiarizationEngine to map a diarization time segment onto more
+    /// than one utterance, and for pause-gap detection to reflect actual
+    /// gaps between recognized speech instead of gaps between callbacks.
+    ///
+    /// A growing (not-yet-finished) utterance keeps the same `start` across
+    /// callbacks -- SFSpeechRecognizer's already-reported word timestamps
+    /// don't get revised, only later words get appended -- so `start` is
+    /// stable the moment an utterance first appears, not just once it ends.
+    struct Utterance {
+        var text: String
+        var start: Date
+        var end: Date
+    }
+
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var isStoppingIntentionally = false
-    private var lastNonEmptyTranscript = ""
 
     /// This reflection's raw audio, written alongside the live speech-to-text
     /// so a later step (speaker diarization) has real audio to work from --
@@ -23,16 +43,43 @@ final class SpeechRecognitionManager: ObservableObject {
     private var audioFile: AVAudioFile?
     private var pendingAudioFileURL: URL?
 
-    /// Everything finalized from earlier listening segments in this recording.
-    /// Apple's speech engine ends a "segment" (an SFSpeechRecognitionTask) on
-    /// its own after roughly a minute of continuous speech, and an
-    /// interruption (call, Siri, another app) also forcibly ends a segment.
-    /// Rather than treating either as the end of the reflection, we fold the
-    /// finished segment's text in here and quietly start a new segment, so
-    /// the transcript reads as one continuous recording to the user.
-    private var accumulatedTranscript = ""
+    /// Utterances finalized from earlier listening segments in this
+    /// recording. Apple's speech engine ends a "segment" (an
+    /// SFSpeechRecognitionTask) on its own after roughly a minute of
+    /// continuous speech, and an interruption (call, Siri, another app) also
+    /// forcibly ends a segment. Rather than treating either as the end of
+    /// the reflection, we seal whatever utterances that segment produced in
+    /// here and quietly start a new segment, so the transcript reads as one
+    /// continuous recording to the user.
+    ///
+    /// Known limitation: while a segment is paused for an interruption, the
+    /// raw .caf audio file also isn't being written to (the mic tap is torn
+    /// down), so the file itself has no gap for that pause -- but these
+    /// utterance timestamps are wall-clock and DO include it. For a
+    /// recording with no interruptions (the common case) this doesn't
+    /// matter; for one that was interrupted, diarization's audio-relative
+    /// segment offsets and these wall-clock utterance offsets can drift
+    /// apart by roughly the interruption's length. Not fixed here -- it's a
+    /// separate, second-order issue from the one this rewrite addresses.
+    private var sealedUtterances: [Utterance] = []
 
-    private var currentOnTranscript: (@MainActor (String) -> Void)?
+    /// Utterances recognized so far in the *current* segment, recomputed in
+    /// full from `SFSpeechRecognitionResult.bestTranscription.segments`
+    /// every time a new result arrives (that array only ever grows within a
+    /// segment, so this is cheap and always consistent).
+    private var currentSegmentUtterances: [Utterance] = []
+
+    /// Wall-clock instant the current segment's audio actually started
+    /// (right after `audioEngine.start()` succeeds) -- lets us convert a
+    /// segment-relative `SFTranscriptionSegment.timestamp` into an absolute
+    /// `Date`.
+    private var segmentAudioStartDate: Date?
+
+    /// Treat a gap this long or longer between two recognized utterances as
+    /// a separate utterance rather than a continuation of the same one.
+    private static let utteranceGapThreshold: TimeInterval = 0.7
+
+    private var currentOnTranscript: (@MainActor ([Utterance]) -> Void)?
     private var wasRecordingBeforeInterruption = false
     private var interruptionObserver: NSObjectProtocol?
 
@@ -92,10 +139,11 @@ final class SpeechRecognitionManager: ObservableObject {
         return true
     }
 
-    func start(audioFileName: String, onTranscript: @escaping @MainActor (String) -> Void) {
+    func start(audioFileName: String, onTranscript: @escaping @MainActor ([Utterance]) -> Void) {
         currentOnTranscript = onTranscript
-        accumulatedTranscript = ""
-        lastNonEmptyTranscript = ""
+        sealedUtterances = []
+        currentSegmentUtterances = []
+        segmentAudioStartDate = nil
         liveTranscript = ""
         isStoppingIntentionally = false
         wasRecordingBeforeInterruption = false
@@ -105,7 +153,7 @@ final class SpeechRecognitionManager: ObservableObject {
         beginListeningSegment()
     }
 
-    private static func audioFileURL(named fileName: String) -> URL {
+    static func audioFileURL(named fileName: String) -> URL {
         let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
 
@@ -133,6 +181,8 @@ final class SpeechRecognitionManager: ObservableObject {
         recognitionRequest?.endAudio()
         recognitionRequest = nil
         recognitionTask = nil
+        currentSegmentUtterances = []
+        segmentAudioStartDate = nil
 
         do {
             let audioSession = AVAudioSession.sharedInstance()
@@ -177,10 +227,10 @@ final class SpeechRecognitionManager: ObservableObject {
 
             audioEngine.prepare()
             try audioEngine.start()
+            segmentAudioStartDate = Date()
 
             isRecording = true
             statusMessage = "Listening."
-            lastNonEmptyTranscript = ""
 
             recognitionTask = speechRecognizer.recognitionTask(with: request) { result, error in
                 Task { @MainActor [weak self] in
@@ -193,20 +243,46 @@ final class SpeechRecognitionManager: ObservableObject {
         }
     }
 
-    private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
-        if let result {
-            let text = result.bestTranscription.formattedString
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Groups a result's word/phrase-level segments into utterances, using
+    /// each segment's own audio-relative timestamp -- splitting wherever the
+    /// gap since the previous segment ended is at least
+    /// `utteranceGapThreshold`. Because this reads real recognizer segment
+    /// timing rather than wall-clock callback arrival, it's the same
+    /// grouping every time it's recomputed for a given result, growing only
+    /// as new segments are recognized.
+    private func utterances(from segments: [SFTranscriptionSegment], segmentStart: Date) -> [Utterance] {
+        var result: [Utterance] = []
 
-            if !text.isEmpty {
-                lastNonEmptyTranscript = text
-                let combined = combinedTranscript(with: text)
-                liveTranscript = combined
+        for segment in segments {
+            let text = segment.substring.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+
+            let start = segmentStart.addingTimeInterval(segment.timestamp)
+            let end = start.addingTimeInterval(segment.duration)
+
+            if let lastIndex = result.indices.last,
+               start.timeIntervalSince(result[lastIndex].end) < Self.utteranceGapThreshold {
+                result[lastIndex].text += " " + text
+                result[lastIndex].end = end
+            } else {
+                result.append(Utterance(text: text, start: start, end: end))
+            }
+        }
+
+        return result
+    }
+
+    private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
+        if let result, let segmentStart = segmentAudioStartDate {
+            let segments = result.bestTranscription.segments
+            if !segments.isEmpty {
+                currentSegmentUtterances = utterances(from: segments, segmentStart: segmentStart)
+            }
+
+            let combined = sealedUtterances + currentSegmentUtterances
+            if !combined.isEmpty {
+                liveTranscript = combined.map(\.text).joined(separator: " ")
                 statusMessage = result.isFinal ? "Final transcript received." : "Listening."
-                currentOnTranscript?(combined)
-            } else if result.isFinal, !lastNonEmptyTranscript.isEmpty {
-                let combined = combinedTranscript(with: lastNonEmptyTranscript)
-                statusMessage = "Final transcript received."
                 currentOnTranscript?(combined)
             }
         }
@@ -215,8 +291,9 @@ final class SpeechRecognitionManager: ObservableObject {
 
         if isStoppingIntentionally {
             statusMessage = "Speech capture stopped."
-            if !lastNonEmptyTranscript.isEmpty {
-                currentOnTranscript?(combinedTranscript(with: lastNonEmptyTranscript))
+            let combined = sealedUtterances + currentSegmentUtterances
+            if !combined.isEmpty {
+                currentOnTranscript?(combined)
             }
             return
         }
@@ -231,9 +308,9 @@ final class SpeechRecognitionManager: ObservableObject {
 
         if isRecording {
             // Not an interruption — most likely Apple's speech engine ending
-            // this segment on its own after continuous speech. Fold what we
+            // this segment on its own after continuous speech. Seal what we
             // have and quietly keep going instead of stopping the reflection.
-            foldSegmentIntoAccumulatedTranscript()
+            sealCurrentSegment()
             statusMessage = "Listening (continuing)."
             beginListeningSegment()
         } else {
@@ -242,14 +319,9 @@ final class SpeechRecognitionManager: ObservableObject {
         }
     }
 
-    private func combinedTranscript(with segmentText: String) -> String {
-        accumulatedTranscript.isEmpty ? segmentText : accumulatedTranscript + " " + segmentText
-    }
-
-    private func foldSegmentIntoAccumulatedTranscript() {
-        guard !lastNonEmptyTranscript.isEmpty else { return }
-        accumulatedTranscript = combinedTranscript(with: lastNonEmptyTranscript)
-        lastNonEmptyTranscript = ""
+    private func sealCurrentSegment() {
+        sealedUtterances.append(contentsOf: currentSegmentUtterances)
+        currentSegmentUtterances = []
     }
 
     private func handleInterruption(type: AVAudioSession.InterruptionType, optionsValue: UInt?) {
@@ -257,7 +329,7 @@ final class SpeechRecognitionManager: ObservableObject {
         case .began:
             guard isRecording else { return }
             wasRecordingBeforeInterruption = true
-            foldSegmentIntoAccumulatedTranscript()
+            sealCurrentSegment()
 
             if audioEngine.isRunning {
                 audioEngine.stop()

@@ -15,6 +15,7 @@ struct ObservatoryScreen: View {
     @EnvironmentObject private var speechManager: SpeechRecognitionManager
 
     @State private var pendingConsentConfirmation = false
+    @State private var pendingDeleteSession: ReflectionSession?
 
     var body: some View {
         NavigationStack {
@@ -65,6 +66,25 @@ struct ObservatoryScreen: View {
             } message: {
                 Text("If anyone besides you will be part of this reflection, make sure they know it's being recorded and have agreed to it.")
             }
+            .confirmationDialog(
+                "Delete This Reflection",
+                isPresented: Binding(
+                    get: { pendingDeleteSession != nil },
+                    set: { isPresented in if !isPresented { pendingDeleteSession = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pendingDeleteSession
+            ) { session in
+                Button("Delete", role: .destructive) {
+                    store.deleteReflection(session)
+                    pendingDeleteSession = nil
+                }
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteSession = nil
+                }
+            } message: { session in
+                Text("This permanently deletes \"\(session.title)\" and its audio recording. This can't be undone.")
+            }
         }
     }
 
@@ -95,8 +115,8 @@ struct ObservatoryScreen: View {
 
             let audioFileName = store.startReflection(consentAcknowledgedAt: consentTimestamp)
 
-            speechManager.start(audioFileName: audioFileName) { text in
-                store.updateLiveTranscript(text)
+            speechManager.start(audioFileName: audioFileName) { utterances in
+                store.updateLiveTranscript(utterances)
             }
         }
     }
@@ -164,6 +184,15 @@ struct ObservatoryScreen: View {
 
                 sectionTitle("Diagnostics")
                 diagnosticsView(session)
+
+                Divider()
+
+                Button(role: .destructive) {
+                    pendingDeleteSession = session
+                } label: {
+                    Label("Delete This Reflection", systemImage: "trash")
+                        .font(.caption)
+                }
             }
         }
     }

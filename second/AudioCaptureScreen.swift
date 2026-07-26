@@ -130,8 +130,8 @@ struct AudioCaptureScreen: View {
 
             let audioFileName = store.startReflection(consentAcknowledgedAt: consentTimestamp)
 
-            speechManager.start(audioFileName: audioFileName) { text in
-                store.updateLiveTranscript(text)
+            speechManager.start(audioFileName: audioFileName) { utterances in
+                store.updateLiveTranscript(utterances)
             }
         }
     }

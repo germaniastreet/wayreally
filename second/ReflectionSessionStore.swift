@@ -17,8 +17,18 @@ final class ReflectionSessionStore: ObservableObject {
         }
     }
 
-    private var lastTranscriptUpdateDate: Date?
-    private var lastTranscriptText: String = ""
+    /// Treat a gap this long or longer between two recognized utterances as
+    /// a real pause worth recording as evidence. Utterance timing comes from
+    /// SFSpeechRecognizer's own segment timestamps (real positions within
+    /// its audio stream), not from when SpeechRecognitionManager's callback
+    /// happened to run -- so unlike the previous implementation, this isn't
+    /// measuring callback/scheduling jitter. It's still not true acoustic
+    /// silence detection (no energy/VAD analysis of the raw waveform), so
+    /// these are recorded at `.low`/`.medium` confidence rather than
+    /// `.high` -- see PROJECT_CONSTRAINTS.md and the review this responds
+    /// to (finding 2, "Pause gap observations do not measure acoustic
+    /// pauses").
+    private let minimumObservablePause: TimeInterval = 1.5
 
     init() {
         // Start honestly empty when there's no saved history yet, rather
@@ -42,8 +52,6 @@ final class ReflectionSessionStore: ObservableObject {
     @discardableResult
     func startReflection(consentAcknowledgedAt: Date) -> String {
         let start = Date()
-        lastTranscriptUpdateDate = nil
-        lastTranscriptText = ""
 
         let emptyWindow = BiometricWindow(queryStart: start, queryEnd: start, samples: [], quality: .unavailable)
 
@@ -71,33 +79,45 @@ final class ReflectionSessionStore: ObservableObject {
         return audioFileName
     }
 
-    func updateLiveTranscript(_ text: String) {
+    /// Reconciles the live utterance list (delivered in full, from
+    /// SpeechRecognitionManager, on every speech callback) against this
+    /// session's transcript. Earlier utterances are done growing --
+    /// SFSpeechRecognizer only ever revises the most recent one -- so only
+    /// the final entry's text/timestamp actually needs to keep updating in
+    /// place; anything new past the current count is appended. Each
+    /// utterance keeps its own real, stable start time (see
+    /// SpeechRecognitionManager.Utterance), which is what makes per-speaker
+    /// diarization mapping meaningful afterwards -- previously this method
+    /// collapsed an entire reflection into one transcript event whose
+    /// timestamp kept sliding forward to "now," so diarization could only
+    /// ever assign one speaker label to the whole conversation (review
+    /// finding 1).
+    func updateLiveTranscript(_ utterances: [SpeechRecognitionManager.Utterance]) {
         guard var session = activeSession, session.state == .recording else { return }
+        guard !utterances.isEmpty else { return }
 
-        let now = Date()
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var transcriptIndices = session.transcript.indices.filter { session.transcript[$0].source == .transcript }
 
-        guard !trimmed.isEmpty else { return }
+        // Emit a pause-gap observation for any newly-visible gap between
+        // consecutive utterances that's long enough to be meaningful. Only
+        // gaps at or past `transcriptIndices.count` are new -- earlier ones
+        // were already recorded on a previous call, since this whole
+        // utterance list is re-delivered every time.
+        if utterances.count > 1 {
+            for index in max(1, transcriptIndices.count)..<utterances.count {
+                let gap = utterances[index].start.timeIntervalSince(utterances[index - 1].end)
+                guard gap >= minimumObservablePause else { continue }
 
-        if trimmed == lastTranscriptText {
-            activeSession = session
-            return
-        }
-
-        if let lastDate = lastTranscriptUpdateDate {
-            let gap = now.timeIntervalSince(lastDate)
-
-            if gap >= 1.5 {
                 session.observationEvents.append(
                     ObservationEvent(
-                        timestamp: now,
+                        timestamp: utterances[index - 1].end,
                         kind: .pauseGap,
                         category: .voice,
                         title: "Pause gap",
                         detail: String(format: "Possible pause or silence gap of %.1f seconds before speech resumed.", gap),
                         source: .acoustic,
                         confidence: gap >= 2.5 ? .medium : .low,
-                        relatedText: lastTranscriptText.isEmpty ? nil : lastTranscriptText,
+                        relatedText: utterances[index - 1].text,
                         tags: ["pause", "silence", "speech-timing"],
                         engineVersion: ObservationEventEngine.engineVersion
                     )
@@ -105,18 +125,19 @@ final class ReflectionSessionStore: ObservableObject {
             }
         }
 
-        if let lastIndex = session.transcript.indices.last,
-           session.transcript[lastIndex].source == .transcript {
-            session.transcript[lastIndex].text = trimmed
-            session.transcript[lastIndex].timestamp = now
-        } else {
-            session.transcript.append(
-                TranscriptEvent(timestamp: now, speaker: .user, text: trimmed, source: .transcript)
-            )
+        for (i, utterance) in utterances.enumerated() {
+            if i < transcriptIndices.count {
+                let idx = transcriptIndices[i]
+                session.transcript[idx].text = utterance.text
+                session.transcript[idx].timestamp = utterance.start
+            } else {
+                session.transcript.append(
+                    TranscriptEvent(timestamp: utterance.start, speaker: .user, text: utterance.text, source: .transcript)
+                )
+                transcriptIndices.append(session.transcript.count - 1)
+            }
         }
 
-        lastTranscriptUpdateDate = now
-        lastTranscriptText = trimmed
         activeSession = session
     }
 
@@ -136,15 +157,9 @@ final class ReflectionSessionStore: ObservableObject {
         }
 
         if session.transcript.isEmpty {
-            if !lastTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                session.transcript.append(
-                    TranscriptEvent(timestamp: end, speaker: .user, text: lastTranscriptText, source: .transcript)
-                )
-            } else {
-                session.transcript.append(
-                    TranscriptEvent(timestamp: session.startedAt, speaker: .user, text: "No speech was captured for this reflection.", source: .userMarker)
-                )
-            }
+            session.transcript.append(
+                TranscriptEvent(timestamp: session.startedAt, speaker: .user, text: "No speech was captured for this reflection.", source: .userMarker)
+            )
         }
 
         session.biometrics = BiometricWindow(queryStart: session.startedAt, queryEnd: end, samples: [], quality: .unavailable)
@@ -234,8 +249,63 @@ final class ReflectionSessionStore: ObservableObject {
 
     func resetActiveSession() {
         activeSession = nil
-        lastTranscriptUpdateDate = nil
-        lastTranscriptText = ""
+    }
+
+    // MARK: - Deletion & export (PROJECT_CONSTRAINTS.md #12: users must be
+    // able to understand, control, export, and remove their data)
+
+    /// Deletes one completed reflection and its associated raw audio file,
+    /// if it has one. Safe to call even if the audio file is already
+    /// missing.
+    func deleteReflection(_ session: ReflectionSession) {
+        completedSessions.removeAll { $0.id == session.id }
+        if let audioFileName = session.audioFileName {
+            Self.deleteAudioFile(named: audioFileName)
+        }
+    }
+
+    /// Wipes every completed reflection this app knows about, plus every
+    /// file in the reflection Audio directory -- including any orphaned
+    /// `.caf` left behind by a past crash or bug, which per-reflection
+    /// deletion above can't reach since it only knows about files a
+    /// still-referenced session points to. This is an explicit, confirmed,
+    /// all-or-nothing action; there is no soft/partial version.
+    func deleteAllData() {
+        completedSessions = []
+        Self.deleteAllAudioFiles()
+    }
+
+    /// Builds one JSON export covering every completed reflection's
+    /// transcript, observations, evidence, and consent/provenance metadata.
+    /// Raw audio is intentionally not included -- it would make the export
+    /// file large and is also the most sensitive part of a reflection;
+    /// exporting the record of what was said and observed doesn't require
+    /// exporting the recording itself.
+    func exportAllReflectionsJSON() -> URL? {
+        do {
+            let data = try JSONEncoder.reflectionSessionEncoder.encode(completedSessions)
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("WayReally-Export-\(Int(Date().timeIntervalSince1970)).json")
+            try data.write(to: url, options: [.atomic])
+            return url
+        } catch {
+            print("Reflection export failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private static func deleteAudioFile(named fileName: String) {
+        let url = SpeechRecognitionManager.audioFileURL(named: fileName)
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    private static func deleteAllAudioFiles() {
+        let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let audioDirectory = baseURL
+            .appendingPathComponent("WayReally", isDirectory: true)
+            .appendingPathComponent("Audio", isDirectory: true)
+        try? FileManager.default.removeItem(at: audioDirectory)
     }
 
     // MARK: - Persistence

@@ -13,9 +13,10 @@ import WhisperKit // AudioProcessor.loadAudioAsFloatArray lives here, not in Spe
 /// Honesty note (PROJECT_CONSTRAINTS.md #5, #9): this only ever tells voices
 /// apart -- it has no way to know which voice is the phone's owner, so a
 /// transcript stays entirely `.user` unless diarization actually finds more
-/// than one voice. When it does, every entry (including the owner's) gets
-/// re-labeled as "Speaker 1", "Speaker 2", etc., since asserting one of them
-/// is specifically "You" would be presenting a guess as a fact.
+/// than one *distinct* voice. When it does, every entry (including the
+/// owner's) gets re-labeled as "Speaker 1", "Speaker 2", etc., since
+/// asserting one of them is specifically "You" would be presenting a guess
+/// as a fact.
 ///
 /// IMPORTANT: this is the one file in WayReally built against a third-party
 /// package's exact API without a compiler available here to verify it. If
@@ -23,13 +24,13 @@ import WhisperKit // AudioProcessor.loadAudioAsFloatArray lives here, not in Spe
 /// this file, that's expected -- the fix is almost certainly a one- or
 /// two-line rename once the real member name is visible in the error.
 enum SpeakerDiarizationEngine {
-    static let engineVersion = "0.1"
+    static let engineVersion = "0.2"
 
     /// Re-labels `session.transcript` by speaker, using the session's saved
     /// audio file. Returns the session unchanged (still nil
     /// diarizationEngineVersion) if there's no audio file, diarization finds
-    /// only one voice, or anything fails -- speaker labeling is a layer on
-    /// top of a transcript that already works fine without it.
+    /// only one distinct voice, or anything fails -- speaker labeling is a
+    /// layer on top of a transcript that already works fine without it.
     static func label(session: ReflectionSession) async -> ReflectionSession {
         var session = session
 
@@ -44,6 +45,16 @@ enum SpeakerDiarizationEngine {
 
             let segments = Self.parseSegments(from: result, fileName: audioFileName)
             guard !segments.isEmpty else { return session }
+
+            // A recording with exactly one voice can still produce more than
+            // one RTTM segment (the same speaker turning on and off) -- so
+            // checking segment *count* alone (the previous behavior) could
+            // relabel a single-speaker session away from `.user` just
+            // because diarization emitted multiple same-speaker segments.
+            // What actually matters is whether more than one *distinct*
+            // speaker identifier was found.
+            let distinctSpeakers = Set(segments.map(\.label))
+            guard distinctSpeakers.count >= 2 else { return session }
 
             session.transcript = session.transcript.map { event in
                 var event = event

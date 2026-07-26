@@ -4,6 +4,7 @@ __MACOSX/
 
 # Xcode local user state
 *.xcuserstate
+xcuserdata/
 DerivedData/
 build/
 

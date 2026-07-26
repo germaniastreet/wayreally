@@ -144,29 +144,43 @@ evidence *is* the session's own transcript and biometric window, which
 travel with it, so any observation can always be traced back to the raw
 transcript text it came from.
 
-**Current gap worth knowing about:** `ReflectionSessionStore` holds
-`completedSessions` only in memory (`@Published var completedSessions:
-[ReflectionSession] = SampleData.sessions`) — there is no `FileManager` or
-`UserDefaults` persistence call anywhere in that file. In practice, this
-means finished reflections do not currently survive an app relaunch; only
-the sample/demo data reappears. This is a real limitation, not a design
-choice, and is a natural candidate for a future version (following the
-same JSON-file-in-Application-Support pattern `PersistentSignalLibraryStore`
-already uses successfully for signal libraries).
+`ReflectionSessionStore.completedSessions` is persisted to disk as JSON on
+every change (`saveCompletedSessions()`), following the same
+JSON-file-in-Application-Support pattern `PersistentSignalLibraryStore`
+already uses for signal libraries — see section 6. A finished reflection
+therefore survives an app relaunch, phone restart, or the app being
+terminated in the background. There is no seeded demo data: an empty
+history honestly shows "No Reflections Yet" rather than fabricated
+`SampleData` that could be mistaken for a real reflection.
+
+Deletion and export are first-class parts of this same evidence trail
+(PROJECT_CONSTRAINTS.md #12): `ReflectionSessionStore.deleteReflection(_:)`
+removes one session plus its `.caf` audio file;
+`ReflectionSessionStore.deleteAllData()` wipes every session and sweeps the
+whole reflection Audio directory (including any orphaned audio a past
+crash or bug left behind); `ReflectionSessionStore.exportAllReflectionsJSON()`
+writes every completed session (transcript, observations, evidence,
+consent/provenance metadata) to a JSON file for the system share sheet.
+Export deliberately excludes raw audio.
 
 ## 6. "Database" / storage schema
 
-There is no database (no CoreData, no SwiftData, no SQLite). Two storage
-mechanisms exist today:
+There is no database (no CoreData, no SwiftData, no SQLite). Storage is
+JSON files on disk, all under the app's Application Support directory
+(`FileManager.default.urls(for: .applicationSupportDirectory, ...)`):
 
-- **In-memory only:** `ReflectionSessionStore.completedSessions` and
-  `.activeSession` — Swift `Codable` structs held in RAM, lost on
-  relaunch (see gap above).
-- **JSON files on disk:** `PersistentSignalLibraryStore` encodes
-  `[SignalLibrary]` via `JSONEncoder`/`JSONDecoder` to a file under the
-  app's Application Support directory (`FileManager.default.urls(for:
-  .applicationSupportDirectory, ...)`). This is the only durable storage
-  in the app today.
+- `WayReally/completed_reflections_v1.json` — `[ReflectionSession]` via
+  `JSONEncoder`/`JSONDecoder`, written by `ReflectionSessionStore`.
+- `WayReally/Audio/<session-id>.caf` — one raw audio file per reflection
+  that captured audio, written by `SpeechRecognitionManager` and read by
+  `SpeakerDiarizationEngine`.
+- `PersistentSignalLibraryStore` encodes `[SignalLibrary]` the same way,
+  in its own file, for the separate signal-library subsystem.
+
+`activeSession` (the in-progress reflection) stays in-memory only
+(`@Published`, not persisted) until `stopAndObserve()` moves it into
+`completedSessions` — an app kill mid-recording loses that one
+in-progress reflection, not the ones already completed.
 
 The core `Codable` model types (defined in Models.swift /
 SignalLibraryModels.swift) are effectively the schema:
@@ -174,20 +188,27 @@ SignalLibraryModels.swift) are effectively the schema:
 `DynamicsPattern`, `ObservationCorrelation`, `BiometricWindow` /
 `BiometricSample`, `VoiceSignals` on the reflection side; `SignalLibrary`,
 `SignalDetectionRule`, `SignalLibraryMatch` on the signal-library side.
-Any future real persistence layer (for reflections) should serialize
-these same types rather than inventing a parallel representation.
+Any future persistence change should serialize these same types rather
+than inventing a parallel representation.
 
 ## 7. API boundaries / network access / "AI reasoning"
 
-As of this version, WayReally makes **no network calls anywhere in the
-codebase** — there is no `URLSession`, no `URLRequest`, and no
-integration with any external AI/LLM service. Every analysis engine listed
-in section 4 is on-device, rule-based Swift logic (keyword matching, word
-counts, simple heuristics) — not a large-language-model prompt. This
-matches PROJECT_CONSTRAINTS.md's "local-first" posture (see
-SettingsScreen: Cloud sync = Off, Storage = Local-first) and is worth
-treating as intentional, not incidental: it means reflections never leave
-the device today.
+Every analysis engine listed in section 4 is on-device, rule-based Swift
+logic (keyword matching, word counts, simple heuristics) — not a
+large-language-model prompt, and none of them make network calls. There is
+no `URLSession`/`URLRequest` anywhere in this codebase's own code, and no
+integration with any external AI/LLM service — a reflection's *content*
+(transcript, observations, audio) never leaves the device.
+
+As of speaker diarization (`SpeakerDiarizationEngine`, built on Argmax's
+SpeakerKit), this is no longer a zero-network app: SpeakerKit's underlying
+Pyannote CoreML models auto-download from Hugging Face the first time
+diarization runs, then cache on-device and run fully offline afterward.
+That download carries no reflection data — it's a one-time asset fetch,
+not a network call made *with* a user's recording — but it means
+`SettingsScreen`'s "Cloud sync: Off" row is about data, not about every
+network access the app ever makes; worth being precise about that
+distinction if this gets asked about.
 
 If a future version adds real "AI reasoning" (an LLM call, a prompt-based
 engine, a cloud service) that would be a meaningful architecture change,
