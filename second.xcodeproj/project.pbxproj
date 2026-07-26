@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		383DE4C03015A7BE00307A1A /* SpeakerKit in Frameworks */ = {isa = PBXBuildFile; productRef = 383DE4BF3015A7BE00307A1A /* SpeakerKit */; };
+		383DE4C53015AD4D00307A1A /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 383DE4C43015AD4D00307A1A /* WhisperKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +41,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				383DE4C53015AD4D00307A1A /* WhisperKit in Frameworks */,
 				383DE4C03015A7BE00307A1A /* SpeakerKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -51,6 +53,7 @@
 			isa = PBXGroup;
 			children = (
 				381ED8A72FDB5CB200B1E569 /* second */,
+				383DE4C33015AD4D00307A1A /* Frameworks */,
 				381ED8A62FDB5CB200B1E569 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,6 +64,13 @@
 				381ED8A52FDB5CB200B1E569 /* second.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		383DE4C33015AD4D00307A1A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -84,6 +94,7 @@
 			name = second;
 			packageProductDependencies = (
 				383DE4BF3015A7BE00307A1A /* SpeakerKit */,
+				383DE4C43015AD4D00307A1A /* WhisperKit */,
 			);
 			productName = second;
 			productReference = 381ED8A52FDB5CB200B1E569 /* second.app */;
@@ -373,6 +384,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 383DE4BE3015A7BE00307A1A /* XCRemoteSwiftPackageReference "argmax-oss-swift" */;
 			productName = SpeakerKit;
+		};
+		383DE4C43015AD4D00307A1A /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 383DE4BE3015A7BE00307A1A /* XCRemoteSwiftPackageReference "argmax-oss-swift" */;
+			productName = WhisperKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

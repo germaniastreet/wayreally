@@ -6,8 +6,13 @@ import Combine
 final class SignalLibraryRegistry: ObservableObject {
     @Published var libraries: [SignalLibrary]
 
-    init(libraries: [SignalLibrary] = PersistentSignalLibraryStore.shared.librariesSnapshot()) {
-        self.libraries = libraries
+    init(libraries: [SignalLibrary]? = nil) {
+        // Not a default parameter value -- Swift evaluates those outside the
+        // initializer's own actor context, which is exactly what caused the
+        // "main actor-isolated ... nonisolated context" warnings here before.
+        // Fetching it in the body instead runs on this class's own MainActor
+        // isolation, same as every other method here that touches the store.
+        self.libraries = libraries ?? PersistentSignalLibraryStore.shared.librariesSnapshot()
     }
 
     var enabledLibraries: [SignalLibrary] {

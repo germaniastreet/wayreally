@@ -42,8 +42,16 @@ final class SpeechRecognitionManager: ObservableObject {
             object: AVAudioSession.sharedInstance(),
             queue: .main
         ) { notification in
+            // Pulled out here, before crossing into the Task below, since
+            // Notification itself isn't Sendable -- only these two plain
+            // values (an enum and a UInt) need to cross that boundary.
+            guard let info = notification.userInfo,
+                  let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+            let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt
+
             Task { @MainActor [weak self] in
-                self?.handleInterruption(notification)
+                self?.handleInterruption(type: type, optionsValue: optionsValue)
             }
         }
     }
@@ -68,7 +76,7 @@ final class SpeechRecognitionManager: ObservableObject {
         }
 
         let microphoneGranted = await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+            AVAudioApplication.requestRecordPermission { granted in
                 continuation.resume(returning: granted)
             }
         }
@@ -216,7 +224,7 @@ final class SpeechRecognitionManager: ObservableObject {
         if wasRecordingBeforeInterruption {
             // The system is mid-interruption (a call, Siri, or another app
             // just took the microphone). This segment ending is expected —
-            // handleInterruption(_:) will restart listening once the
+            // handleInterruption(type:optionsValue:) will restart listening once the
             // interruption ends, so don't treat this as a failure.
             return
         }
@@ -244,11 +252,7 @@ final class SpeechRecognitionManager: ObservableObject {
         lastNonEmptyTranscript = ""
     }
 
-    private func handleInterruption(_ notification: Notification) {
-        guard let info = notification.userInfo,
-              let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
-
+    private func handleInterruption(type: AVAudioSession.InterruptionType, optionsValue: UInt?) {
         switch type {
         case .began:
             guard isRecording else { return }
@@ -270,7 +274,7 @@ final class SpeechRecognitionManager: ObservableObject {
             wasRecordingBeforeInterruption = false
 
             var shouldResume = false
-            if let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt {
+            if let optionsValue {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
                 shouldResume = options.contains(.shouldResume)
             }
