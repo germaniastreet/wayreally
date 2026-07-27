@@ -43,6 +43,63 @@ final class SpeechRecognitionManager: ObservableObject {
     private var audioFile: AVAudioFile?
     private var pendingAudioFileURL: URL?
 
+    /// Thread-safe target for the audio tap's buffer callback, which fires on
+    /// a real-time audio thread outside this class's `@MainActor` isolation.
+    /// The tap itself is installed exactly once (in the first call to
+    /// `beginListeningSegment()`) and is never torn down at a routine segment
+    /// boundary -- only this box's contents change, atomically under a lock,
+    /// when a new segment's request replaces the previous one. That's what
+    /// keeps the mic capturing continuously across Apple's ~1 minute segment
+    /// limit instead of stopping and restarting the engine, which previously
+    /// left a real gap (stop → remove tap → reconfigure session → reinstall
+    /// tap → start) during which speech at the seam was silently dropped --
+    /// the leading suspect for transcript quality degrading right around the
+    /// one-minute mark.
+    private final class CurrentRequestBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var request: SFSpeechAudioBufferRecognitionRequest?
+        private var audioFile: AVAudioFile?
+
+        /// Swaps in the new request/file and returns whatever was previously
+        /// set, still under the same lock the tap callback uses -- so by the
+        /// time this returns, no in-flight tap callback can still be holding
+        /// a reference to the old request. That guarantees it's safe for the
+        /// caller to call `endAudio()` on the returned previous request right
+        /// after this returns, without racing a concurrent `append(_:)` on
+        /// the audio thread (which would throw).
+        @discardableResult
+        func set(request: SFSpeechAudioBufferRecognitionRequest?, audioFile: AVAudioFile?) -> SFSpeechAudioBufferRecognitionRequest? {
+            lock.lock()
+            defer { lock.unlock() }
+            let previous = self.request
+            self.request = request
+            self.audioFile = audioFile
+            return previous
+        }
+
+        /// Called from the audio tap on a real-time thread for every buffer.
+        /// Appending and the raw-audio file write both happen under the same
+        /// lock `set(request:audioFile:)` uses, so a segment swap can never
+        /// interleave with an in-progress append.
+        func append(_ buffer: AVAudioPCMBuffer) {
+            lock.lock()
+            defer { lock.unlock() }
+            request?.append(buffer)
+            if let audioFile {
+                try? audioFile.write(from: buffer)
+            }
+        }
+
+        func clear() {
+            lock.lock()
+            defer { lock.unlock() }
+            request = nil
+            audioFile = nil
+        }
+    }
+
+    private let currentRequestBox = CurrentRequestBox()
+
     /// Utterances finalized from earlier listening segments in this
     /// recording. Apple's speech engine ends a "segment" (an
     /// SFSpeechRecognitionTask) on its own after roughly a minute of
@@ -70,9 +127,10 @@ final class SpeechRecognitionManager: ObservableObject {
     private var currentSegmentUtterances: [Utterance] = []
 
     /// Wall-clock instant the current segment's audio actually started
-    /// (right after `audioEngine.start()` succeeds) -- lets us convert a
-    /// segment-relative `SFTranscriptionSegment.timestamp` into an absolute
-    /// `Date`.
+    /// (right after `audioEngine.start()` succeeds, or immediately after a
+    /// mid-stream segment swap that doesn't restart the engine) -- lets us
+    /// convert a segment-relative `SFTranscriptionSegment.timestamp` into an
+    /// absolute `Date`.
     private var segmentAudioStartDate: Date?
 
     /// Treat a gap this long or longer between two recognized utterances as
@@ -163,24 +221,24 @@ final class SpeechRecognitionManager: ObservableObject {
             .appendingPathComponent(fileName)
     }
 
-    /// Starts (or restarts) one listening segment. Safe to call whether or
-    /// not a previous segment is still technically running — it tears down
-    /// any existing engine/tap/request first, so this is the single entry
-    /// point used for the initial start, resuming after an interruption, and
-    /// quietly continuing past Apple's ~1 minute segment limit.
+    /// Starts (or continues into) one listening segment. Used for the
+    /// initial start, for resuming after an interruption, and for quietly
+    /// continuing past Apple's ~1 minute segment limit.
+    ///
+    /// Whenever the audio engine is already running -- the routine case of
+    /// continuing past the ~1 minute limit -- this does NOT stop it or touch
+    /// its tap. It only swaps in a fresh `SFSpeechAudioBufferRecognitionRequest`
+    /// (via `currentRequestBox`) and starts a new recognition task against
+    /// it, so the mic never stops capturing and no audio at the segment seam
+    /// is lost. The engine and tap are only started fresh here when they
+    /// aren't already running -- the very first segment, or resuming after an
+    /// interruption tore them down.
     private func beginListeningSegment() {
         guard let speechRecognizer, speechRecognizer.isAvailable else {
             statusMessage = "Speech recognizer unavailable."
             return
         }
 
-        if audioEngine.isRunning {
-            audioEngine.stop()
-            audioEngine.inputNode.removeTap(onBus: 0)
-        }
-        recognitionRequest?.endAudio()
-        recognitionRequest = nil
-        recognitionTask = nil
         currentSegmentUtterances = []
         segmentAudioStartDate = nil
 
@@ -191,7 +249,6 @@ final class SpeechRecognitionManager: ObservableObject {
 
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.shouldReportPartialResults = true
-            recognitionRequest = request
 
             let inputNode = audioEngine.inputNode
             let recordingFormat = inputNode.outputFormat(forBus: 0)
@@ -211,22 +268,34 @@ final class SpeechRecognitionManager: ObservableObject {
                 }
             }
 
-            // Captured as a local constant rather than reached for via `self`
-            // inside the closure below -- this tap callback fires on a
-            // real-time audio thread, not the main actor this class is
-            // otherwise isolated to, so it must not touch `self` directly.
-            let fileForThisSegment = audioFile
+            // Atomically swap this segment's request (and the unchanging
+            // audio file reference) into the box, then end the *previous*
+            // request only after the swap completes. Because `set` and
+            // `append` share one lock, this guarantees no tap callback can
+            // still be appending to the old request by the time we call
+            // `endAudio()` on it below -- avoiding the "append after
+            // endAudio" exception that a naive swap could hit.
+            let previousRequest = currentRequestBox.set(request: request, audioFile: audioFile)
+            recognitionRequest = request
 
-            inputNode.removeTap(onBus: 0)
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
-                request.append(buffer)
-                if let fileForThisSegment {
-                    try? fileForThisSegment.write(from: buffer)
+            if audioEngine.isRunning {
+                // Routine continuation past the ~1 minute segment limit --
+                // the engine and tap stay exactly as they are; only the
+                // request/task underneath changes. No stop/start gap.
+                previousRequest?.endAudio()
+            } else {
+                // First segment, or resuming after an interruption tore the
+                // engine down -- (re)install the tap and start fresh.
+                previousRequest?.endAudio()
+                inputNode.removeTap(onBus: 0)
+                inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [currentRequestBox] buffer, _ in
+                    currentRequestBox.append(buffer)
                 }
+
+                audioEngine.prepare()
+                try audioEngine.start()
             }
 
-            audioEngine.prepare()
-            try audioEngine.start()
             segmentAudioStartDate = Date()
 
             isRecording = true
@@ -363,6 +432,7 @@ final class SpeechRecognitionManager: ObservableObject {
                 audioEngine.inputNode.removeTap(onBus: 0)
             }
             recognitionRequest?.endAudio()
+            currentRequestBox.clear()
             recognitionRequest = nil
             recognitionTask = nil
             isRecording = false
@@ -400,6 +470,7 @@ final class SpeechRecognitionManager: ObservableObject {
         }
 
         recognitionRequest?.endAudio()
+        currentRequestBox.clear()
 
         recognitionRequest = nil
         recognitionTask = nil
