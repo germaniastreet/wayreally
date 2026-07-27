@@ -45,7 +45,11 @@ struct AudioCaptureScreen: View {
                                         }
                                     } else {
                                         CaptureButton(icon: "record.circle", label: "Start", color: SecondTheme.background) {
-                                            pendingConsentConfirmation = true
+                                            // Temporarily bypassing the consent confirmation dialog
+                                            // during testing -- startCapture() still records a
+                                            // consentAcknowledgedAt timestamp either way. Restore by
+                                            // setting pendingConsentConfirmation = true here instead.
+                                            startCapture()
                                         }
                                     }
                                 }

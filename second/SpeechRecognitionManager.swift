@@ -250,11 +250,34 @@ final class SpeechRecognitionManager: ObservableObject {
     /// timing rather than wall-clock callback arrival, it's the same
     /// grouping every time it's recomputed for a given result, growing only
     /// as new segments are recognized.
-    private func utterances(from segments: [SFTranscriptionSegment], segmentStart: Date) -> [Utterance] {
+    ///
+    /// Text for each segment comes from `formattedString` (via
+    /// `segment.substringRange`), not `segment.substring` -- the latter is
+    /// SFSpeechRecognizer's raw per-word text with none of the
+    /// capitalization, punctuation, and smart-formatting Apple normally
+    /// applies to `bestTranscription.formattedString`. Reconstructing the
+    /// transcript from raw substrings (the original version of this
+    /// timestamp rewrite did this) reads as noticeably lower quality even
+    /// when every word was recognized correctly. `substringRange` is the
+    /// documented way to map a segment back onto its formatted text, so this
+    /// keeps the real per-segment timing this rewrite needs while restoring
+    /// the same text quality the app had before it.
+    private func utterances(from segments: [SFTranscriptionSegment], formattedString: String, segmentStart: Date) -> [Utterance] {
         var result: [Utterance] = []
+        let formatted = formattedString as NSString
 
         for segment in segments {
-            let text = segment.substring.trimmingCharacters(in: .whitespacesAndNewlines)
+            let range = segment.substringRange
+            let rawText: String
+            if range.location != NSNotFound, range.location + range.length <= formatted.length {
+                rawText = formatted.substring(with: range)
+            } else {
+                // Fallback for the rare case a range doesn't line up with
+                // the current formattedString -- still correct, just not
+                // formatted.
+                rawText = segment.substring
+            }
+            let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
 
             let start = segmentStart.addingTimeInterval(segment.timestamp)
@@ -276,7 +299,11 @@ final class SpeechRecognitionManager: ObservableObject {
         if let result, let segmentStart = segmentAudioStartDate {
             let segments = result.bestTranscription.segments
             if !segments.isEmpty {
-                currentSegmentUtterances = utterances(from: segments, segmentStart: segmentStart)
+                currentSegmentUtterances = utterances(
+                    from: segments,
+                    formattedString: result.bestTranscription.formattedString,
+                    segmentStart: segmentStart
+                )
             }
 
             let combined = sealedUtterances + currentSegmentUtterances

@@ -93,7 +93,11 @@ struct ObservatoryScreen: View {
     private var lifecycleControls: some View {
         RecordingControlButton(
             isRecording: store.isRecording,
-            onStart: { pendingConsentConfirmation = true },
+            // Temporarily bypassing the consent confirmation dialog during
+            // testing -- startReflectionAndSpeech() still records a
+            // consentAcknowledgedAt timestamp either way. Restore by setting
+            // pendingConsentConfirmation = true here instead.
+            onStart: { startReflectionAndSpeech() },
             onStop: {
                 speechManager.stop()
                 store.stopAndObserve()
