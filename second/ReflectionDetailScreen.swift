@@ -91,33 +91,134 @@ struct ReflectionDetailScreen: View {
         }
     }
 
+    /// A gap of this long or longer between two utterances is shown as a
+    /// full-width "quiet" divider rather than a small inline marker -- the
+    /// threshold that separates "normal conversational pause" from "you were
+    /// just walking/not talking for a while." Every gap reaching this view
+    /// is already >= ReflectionSessionStore.minimumObservablePause (1.5s),
+    /// since that's the floor `.pauseGap` events are recorded at in the
+    /// first place.
+    private static let longPauseThreshold: TimeInterval = 10.0
+
+    /// One row of the rendered transcript: either a spoken utterance, or a
+    /// silence gap sitting between two utterances.
+    private enum TranscriptRow: Identifiable {
+        case utterance(TranscriptEvent)
+        case pause(id: UUID, duration: TimeInterval)
+
+        var id: UUID {
+            switch self {
+            case .utterance(let event): return event.id
+            case .pause(let id, _): return id
+            }
+        }
+    }
+
+    /// Interleaves this session's already-recorded `.pauseGap` observation
+    /// events (see ReflectionSessionStore.updateLiveTranscript) between the
+    /// transcript entries they fall between, so pauses/silence read inline
+    /// in the transcript instead of only showing up separately under
+    /// Evidence -> Observation Events. A pause event's own timestamp is the
+    /// *end* of the utterance right before the gap (see
+    /// updateLiveTranscript), so the gap's duration is simply the time from
+    /// there to the start of the next utterance -- no need to parse it back
+    /// out of the event's description text.
+    private var transcriptRows: [TranscriptRow] {
+        let events = session.transcript.sorted { $0.timestamp < $1.timestamp }
+        let gaps = session.observationEvents
+            .filter { $0.kind == .pauseGap }
+            .sorted { $0.timestamp < $1.timestamp }
+
+        var rows: [TranscriptRow] = []
+        var gapIndex = 0
+
+        for (index, event) in events.enumerated() {
+            rows.append(.utterance(event))
+
+            let nextTimestamp = index + 1 < events.count ? events[index + 1].timestamp : Date.distantFuture
+            while gapIndex < gaps.count,
+                  gaps[gapIndex].timestamp >= event.timestamp,
+                  gaps[gapIndex].timestamp < nextTimestamp {
+                let gapEvent = gaps[gapIndex]
+                let duration = nextTimestamp.timeIntervalSince(gapEvent.timestamp)
+                if duration > 0 {
+                    rows.append(.pause(id: gapEvent.id, duration: duration))
+                }
+                gapIndex += 1
+            }
+        }
+
+        return rows
+    }
+
     private var transcriptView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             if session.transcript.isEmpty {
                 Text("No transcript captured.")
                     .font(.caption)
                     .foregroundStyle(SecondTheme.secondaryText)
             } else {
-                ForEach(session.transcript) { event in
-                    HStack(alignment: .top, spacing: 12) {
-                        Text(event.timestamp.shortTimeWithSeconds)
-                            .font(.caption2)
-                            .foregroundStyle(SecondTheme.secondaryText)
-                            .frame(width: 78, alignment: .leading)
+                ForEach(transcriptRows) { row in
+                    switch row {
+                    case .utterance(let event):
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(event.timestamp.shortTimeWithSeconds)
+                                .font(.caption2)
+                                .foregroundStyle(SecondTheme.secondaryText)
+                                .frame(width: 78, alignment: .leading)
 
-                        Text(event.speaker.rawValue)
-                            .font(.caption)
-                            .bold()
-                            .foregroundStyle(SecondTheme.primaryText)
-                            .frame(width: 38, alignment: .leading)
+                            Text(event.speaker.rawValue)
+                                .font(.caption)
+                                .bold()
+                                .foregroundStyle(SecondTheme.primaryText)
+                                .frame(width: 38, alignment: .leading)
 
-                        Text(event.text)
-                            .font(.subheadline)
-                            .foregroundStyle(SecondTheme.primaryText)
+                            Text(event.text)
+                                .font(.subheadline)
+                                .foregroundStyle(SecondTheme.primaryText)
+                        }
+                    case .pause(_, let duration):
+                        pauseIndicator(duration: duration)
                     }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func pauseIndicator(duration: TimeInterval) -> some View {
+        if duration >= Self.longPauseThreshold {
+            HStack(spacing: 8) {
+                VStack { Divider() }
+                Text("quiet · \(Self.formattedGapDuration(duration))")
+                    .font(.caption2)
+                    .foregroundStyle(SecondTheme.secondaryText)
+                    .fixedSize()
+                VStack { Divider() }
+            }
+            .padding(.vertical, 2)
+        } else {
+            HStack(spacing: 12) {
+                Text("")
+                    .frame(width: 78, alignment: .leading)
+
+                Text("···  \(Self.formattedGapDuration(duration)) pause")
+                    .font(.caption2)
+                    .italic()
+                    .foregroundStyle(SecondTheme.secondaryText.opacity(0.8))
+
+                Spacer()
+            }
+        }
+    }
+
+    private static func formattedGapDuration(_ seconds: TimeInterval) -> String {
+        guard seconds >= 60 else {
+            return String(format: "%.1fs", seconds)
+        }
+        let minutes = Int(seconds) / 60
+        let remainingSeconds = Int(seconds) % 60
+        return remainingSeconds == 0 ? "\(minutes)m" : "\(minutes)m \(remainingSeconds)s"
     }
 
     private var evidenceView: some View {
@@ -251,9 +352,28 @@ struct ReflectionDetailScreen: View {
                     .font(.caption)
                     .foregroundStyle(SecondTheme.secondaryText)
 
-                Text("No biometric samples attached to this session yet. Watch and HealthKit will be connected in a later build.")
-                    .font(.caption)
-                    .foregroundStyle(SecondTheme.secondaryText)
+                if session.biometrics.samples.isEmpty {
+                    Text("No Apple Watch samples were received during this reflection.")
+                        .font(.caption)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                } else {
+                    MetricRow(
+                        label: "Latest heart rate",
+                        value: "\(Int(session.biometrics.latestHeartRate.rounded())) BPM"
+                    )
+                    MetricRow(
+                        label: "Average heart rate",
+                        value: "\(Int(session.biometrics.averageHeartRate.rounded())) BPM"
+                    )
+                    MetricRow(
+                        label: "Samples",
+                        value: "\(session.biometrics.samples.count)"
+                    )
+                    MetricRow(
+                        label: "Source",
+                        value: "Apple Watch"
+                    )
+                }
 
                 MetricRow(label: "Data quality", value: session.biometrics.quality.rawValue.capitalized)
             }

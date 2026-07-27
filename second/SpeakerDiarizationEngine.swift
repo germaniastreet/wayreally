@@ -24,7 +24,18 @@ import WhisperKit // AudioProcessor.loadAudioAsFloatArray lives here, not in Spe
 /// this file, that's expected -- the fix is almost certainly a one- or
 /// two-line rename once the real member name is visible in the error.
 enum SpeakerDiarizationEngine {
-    static let engineVersion = "0.2"
+    static let engineVersion = "0.3"
+
+    /// A speaker must account for at least this much total speaking time
+    /// (summed across every RTTM segment attributed to them) before they
+    /// count toward "more than one distinct speaker found." Without this, a
+    /// brief blip -- background noise, a TV, someone nearby saying a single
+    /// word -- being misattributed to a second "voice" was enough to flip an
+    /// entire otherwise single-speaker reflection from "You" to "Speaker A"
+    /// for every line, including the device owner's own speech. A real
+    /// second participant in a reflection speaks for meaningfully longer
+    /// than a couple of seconds.
+    private static let minimumSpeakerDuration: TimeInterval = 2.0
 
     /// Re-labels `session.transcript` by speaker, using the session's saved
     /// audio file. Returns the session unchanged (still nil
@@ -52,14 +63,21 @@ enum SpeakerDiarizationEngine {
             // relabel a single-speaker session away from `.user` just
             // because diarization emitted multiple same-speaker segments.
             // What actually matters is whether more than one *distinct*
-            // speaker identifier was found.
-            let distinctSpeakers = Set(segments.map(\.label))
+            // speaker identifier was found -- and, per minimumSpeakerDuration
+            // above, whether that identifier represents real, sustained
+            // speech rather than a momentary noise blip.
+            let totalDurationByLabel = Dictionary(grouping: segments, by: \.label)
+                .mapValues { $0.reduce(0) { $0 + ($1.end - $1.start) } }
+            let substantialSegments = segments.filter {
+                (totalDurationByLabel[$0.label] ?? 0) >= minimumSpeakerDuration
+            }
+            let distinctSpeakers = Set(substantialSegments.map(\.label))
             guard distinctSpeakers.count >= 2 else { return session }
 
             session.transcript = session.transcript.map { event in
                 var event = event
                 let offset = event.timestamp.timeIntervalSince(session.startedAt)
-                if let match = segments.first(where: { offset >= $0.start && offset <= $0.end }) {
+                if let match = substantialSegments.first(where: { offset >= $0.start && offset <= $0.end }) {
                     event.speaker = .other(match.label)
                 }
                 return event
