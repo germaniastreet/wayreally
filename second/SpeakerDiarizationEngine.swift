@@ -28,14 +28,10 @@ enum SpeakerDiarizationEngine {
 
     /// A speaker must account for at least this much total speaking time
     /// (summed across every RTTM segment attributed to them) before they
-    /// count toward "more than one distinct speaker found." Without this, a
-    /// brief blip -- background noise, a TV, someone nearby saying a single
-    /// word -- being misattributed to a second "voice" was enough to flip an
-    /// entire otherwise single-speaker reflection from "You" to "Speaker A"
-    /// for every line, including the device owner's own speech. A real
-    /// second participant in a reflection speaks for meaningfully longer
-    /// than a couple of seconds.
-    private static let minimumSpeakerDuration: TimeInterval = 2.0
+    /// count toward "more than one distinct speaker found." Lowered to 0.5s
+    /// to catch participants who speak briefly. Pyannote's confidence scores
+    /// help filter actual noise from real (but brief) speech.
+    private static let minimumSpeakerDuration: TimeInterval = 0.5
 
     /// Re-labels `session.transcript` by speaker, using the session's saved
     /// audio file. Returns the session unchanged (still nil

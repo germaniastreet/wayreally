@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UIKit
 
 /// Observatory is now the single home for both recording a reflection and
 /// browsing reflection history. It used to be split with ReflectionTimelineScreen
@@ -16,6 +17,7 @@ struct ObservatoryScreen: View {
 
     @State private var pendingConsentConfirmation = false
     @State private var pendingDeleteSession: ReflectionSession?
+    @State private var hapticTimer: Timer?
 
     var body: some View {
         NavigationStack {
@@ -26,20 +28,27 @@ struct ObservatoryScreen: View {
                     VStack(spacing: 16) {
                         ScreenHeader(
                             title: "WayReally",
-                            subtitle: store.isRecording ? "Recording Reflection" : nil
+                            subtitle: nil
                         )
 
-                        if store.isRecording, let session = store.activeSession {
-                            TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                                Text("\(session.timeRangeText) • \(durationText(for: session, now: context.date))")
-                                    .font(.caption)
-                                    .foregroundStyle(SecondTheme.secondaryText)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal)
-                            }
-                        }
-
                         lifecycleControls
+
+                        if store.isRecording, let session = store.activeSession {
+                            VStack(spacing: 8) {
+                                Text("Recording Reflection")
+                                    .font(.subheadline)
+                                    .bold()
+                                    .foregroundStyle(SecondTheme.primaryText)
+
+                                TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                                    Text("\(session.timeRangeText) • \(durationText(for: session, now: context.date))")
+                                        .font(.caption)
+                                        .foregroundStyle(SecondTheme.secondaryText)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                        }
 
                         if store.isRecording, let session = store.activeSession {
                             liveTranscriptCard(session)
@@ -72,20 +81,53 @@ struct ObservatoryScreen: View {
                     get: { pendingDeleteSession != nil },
                     set: { isPresented in if !isPresented { pendingDeleteSession = nil } }
                 ),
-                titleVisibility: .visible,
-                presenting: pendingDeleteSession
-            ) { session in
+                titleVisibility: .visible
+            ) {
                 Button("Delete", role: .destructive) {
-                    store.deleteReflection(session)
+                    if let session = pendingDeleteSession {
+                        store.deleteReflection(session)
+                    }
                     pendingDeleteSession = nil
                 }
                 Button("Cancel", role: .cancel) {
                     pendingDeleteSession = nil
                 }
-            } message: { session in
-                Text("This permanently deletes \"\(session.title)\" and its audio recording. This can't be undone.")
+            } message: {
+                if let session = pendingDeleteSession {
+                    Text("This permanently deletes \"\(session.title)\" and its audio recording. This can't be undone.")
+                }
             }
         }
+        .onChange(of: store.isRecording) { _, isRecording in
+            if isRecording {
+                startHapticFeedback()
+            } else {
+                stopHapticFeedback()
+            }
+        }
+    }
+
+    private func startHapticFeedback() {
+        // Initial haptic pulse when recording starts
+        let feedback = UIImpactFeedbackGenerator(style: .medium)
+        feedback.prepare()
+        feedback.impactOccurred()
+
+        // Sharp haptic pulse every 60 seconds (1 minute)
+        hapticTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { _ in
+            let pulse = UIImpactFeedbackGenerator(style: .heavy)
+            pulse.prepare()
+            pulse.impactOccurred()
+        }
+    }
+
+    private func stopHapticFeedback() {
+        hapticTimer?.invalidate()
+        hapticTimer = nil
+
+        // Final haptic pulse when recording stops
+        let feedback = UIImpactFeedbackGenerator(style: .medium)
+        feedback.impactOccurred()
     }
 
     // MARK: - Controls
@@ -103,7 +145,7 @@ struct ObservatoryScreen: View {
                 store.stopAndObserve()
             }
         )
-        .frame(maxWidth: .infinity)
+        .padding(.horizontal)
         .padding(.vertical, 4)
     }
 
@@ -144,7 +186,7 @@ struct ObservatoryScreen: View {
 
     private var emptyHistoryCard: some View {
         AppCard(title: "No Reflections Yet") {
-            Text("Hold Start Reflection above to record your first one. Finished reflections are saved to your device and will appear here.")
+            Text("Tap Start Reflection above to record your first one. Finished reflections are saved to your device and will appear here.")
                 .font(.subheadline)
                 .foregroundStyle(SecondTheme.secondaryText)
         }
@@ -195,8 +237,10 @@ struct ObservatoryScreen: View {
                     pendingDeleteSession = session
                 } label: {
                     Label("Delete This Reflection", systemImage: "trash")
-                        .font(.caption)
+                        .font(.subheadline)
+                        .foregroundStyle(.red)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -250,6 +294,48 @@ struct ObservatoryScreen: View {
         }
     }
 
+    private enum TranscriptRow: Identifiable {
+        case utterance(TranscriptEvent)
+        case pause(id: UUID, duration: TimeInterval)
+
+        var id: UUID {
+            switch self {
+            case .utterance(let event): return event.id
+            case .pause(let id, _): return id
+            }
+        }
+    }
+
+    private func transcriptRows(for session: ReflectionSession) -> [TranscriptRow] {
+        let longPauseThreshold: TimeInterval = 10.0
+
+        let events = session.transcript.sorted { $0.timestamp < $1.timestamp }
+        let gaps = session.observationEvents
+            .filter { $0.kind == .pauseGap }
+            .sorted { $0.timestamp < $1.timestamp }
+
+        var rows: [TranscriptRow] = []
+        var gapIndex = 0
+
+        for (index, event) in events.enumerated() {
+            rows.append(.utterance(event))
+
+            let nextTimestamp = index + 1 < events.count ? events[index + 1].timestamp : Date.distantFuture
+            while gapIndex < gaps.count,
+                  gaps[gapIndex].timestamp >= event.timestamp,
+                  gaps[gapIndex].timestamp < nextTimestamp {
+                let gapEvent = gaps[gapIndex]
+                let duration = nextTimestamp.timeIntervalSince(gapEvent.timestamp)
+                if duration > 0 {
+                    rows.append(.pause(id: gapEvent.id, duration: duration))
+                }
+                gapIndex += 1
+            }
+        }
+
+        return rows
+    }
+
     private func transcriptView(_ session: ReflectionSession) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if session.transcript.isEmpty {
@@ -257,26 +343,70 @@ struct ObservatoryScreen: View {
                     .font(.subheadline)
                     .foregroundStyle(SecondTheme.secondaryText)
             } else {
-                ForEach(session.transcript) { event in
-                    HStack(alignment: .top, spacing: 12) {
-                        Text(event.timestamp.shortTimeWithSeconds)
-                            .font(.caption2)
-                            .foregroundStyle(SecondTheme.secondaryText)
-                            .frame(width: 78, alignment: .leading)
+                ForEach(transcriptRows(for: session)) { row in
+                    switch row {
+                    case .utterance(let event):
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(event.timestamp.shortTimeWithSeconds)
+                                .font(.caption2)
+                                .foregroundStyle(SecondTheme.secondaryText)
+                                .frame(width: 78, alignment: .leading)
 
-                        Text(event.speaker.rawValue)
-                            .font(.caption)
-                            .bold()
-                            .foregroundStyle(SecondTheme.primaryText)
-                            .frame(width: 38, alignment: .leading)
+                            Text(event.speaker.rawValue)
+                                .font(.caption)
+                                .bold()
+                                .foregroundStyle(SecondTheme.primaryText)
+                                .frame(width: 38, alignment: .leading)
 
-                        Text(event.text)
-                            .font(.subheadline)
-                            .foregroundStyle(SecondTheme.primaryText)
+                            Text(event.text)
+                                .font(.subheadline)
+                                .foregroundStyle(SecondTheme.primaryText)
+                        }
+                    case .pause(_, let duration):
+                        pauseIndicator(duration: duration)
                     }
                 }
             }
         }
+    }
+
+    private func pauseIndicator(duration: TimeInterval) -> some View {
+        let longPauseThreshold: TimeInterval = 10.0
+
+        return Group {
+            if duration >= longPauseThreshold {
+                HStack(spacing: 8) {
+                    VStack { Divider() }
+                    Text("quiet · \(formattedGapDuration(duration))")
+                        .font(.caption2)
+                        .foregroundStyle(SecondTheme.secondaryText)
+                        .fixedSize()
+                    VStack { Divider() }
+                }
+                .padding(.vertical, 2)
+            } else {
+                HStack(spacing: 12) {
+                    Text("")
+                        .frame(width: 78, alignment: .leading)
+
+                    Text("···  \(formattedGapDuration(duration)) pause")
+                        .font(.caption2)
+                        .italic()
+                        .foregroundStyle(SecondTheme.secondaryText.opacity(0.8))
+
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    private func formattedGapDuration(_ seconds: TimeInterval) -> String {
+        guard seconds >= 60 else {
+            return String(format: "%.1fs", seconds)
+        }
+        let minutes = Int(seconds) / 60
+        let remainingSeconds = Int(seconds) % 60
+        return remainingSeconds == 0 ? "\(minutes)m" : "\(minutes)m \(remainingSeconds)s"
     }
 
     private func evidenceView(_ session: ReflectionSession) -> some View {
@@ -479,96 +609,52 @@ struct ObservatoryScreen: View {
     }
 }
 
-/// One circular control that covers both ends of a reflection. Idle, it only
-/// fires after being held for a couple of seconds (so it can't be triggered
-/// by an accidental tap) and shows on-button text feedback while held
-/// ("Hold...", "Starting...", "Now!"). Once recording, the same circle turns
-/// into a plain single-tap Stop button -- stopping shouldn't have the same
-/// friction as starting. Sized at half of its original size in every state,
-/// including the in-between hold states, per request.
+/// Full-width rectangular control for starting and stopping a reflection.
+/// Tap to start (no hold required), tap to stop. The entire button is hot
+/// and clickable -- no need to hit a specific spot.
 struct RecordingControlButton: View {
     let isRecording: Bool
     let onStart: () -> Void
     let onStop: () -> Void
 
-    @State private var isPressing = false
-    @State private var holdElapsed: Double = 0
-
-    private let holdDuration: Double = 2.0
-    private let tickInterval: Double = 0.05
-    private let diameter: CGFloat = 70
-
     var body: some View {
-        Group {
-            if isRecording {
-                Button(action: onStop) {
-                    face(icon: "stop.fill", label: "Stop", fill: Color.red.opacity(0.9), progress: 0)
-                }
-                .buttonStyle(.plain)
-            } else {
-                face(icon: "record.circle", label: startLabel, fill: SecondTheme.heartRate, progress: min(holdElapsed / holdDuration, 1.0))
-                    .contentShape(Circle())
-                    .onLongPressGesture(
-                        minimumDuration: holdDuration,
-                        maximumDistance: 60,
-                        pressing: { pressing in
-                            isPressing = pressing
-                            if !pressing && holdElapsed < holdDuration {
-                                holdElapsed = 0
-                            }
-                        },
-                        perform: {
-                            holdElapsed = holdDuration
-                            onStart()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                                holdElapsed = 0
-                                isPressing = false
-                            }
-                        }
-                    )
-                    .onReceive(Timer.publish(every: tickInterval, on: .main, in: .common).autoconnect()) { _ in
-                        guard isPressing, holdElapsed < holdDuration else { return }
-                        holdElapsed = min(holdElapsed + tickInterval, holdDuration)
-                    }
+        Button(action: isRecording ? onStop : onStart) {
+            VStack(spacing: 8) {
+                Image(systemName: isRecording ? "stop.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 36, weight: .semibold))
+
+                Text(isRecording ? "Stop Reflection" : "Start Reflection")
+                    .font(.system(size: 16, weight: .bold))
             }
-        }
-        .accessibilityLabel(isRecording ? "Stop reflection" : "Hold for two seconds to start a reflection")
-    }
-
-    private var startLabel: String {
-        if holdElapsed >= holdDuration {
-            return "Now!"
-        } else if isPressing {
-            return "Starting..."
-        } else {
-            return "Hold to\nStart"
-        }
-    }
-
-    private func face(icon: String, label: String, fill: Color, progress: Double) -> some View {
-        ZStack {
-            Circle()
-                .fill(fill)
-                .frame(width: diameter, height: diameter)
-
-            if progress > 0 {
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: diameter, height: diameter)
-            }
-
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 17))
-
-                Text(label)
-                    .font(.system(size: 9, weight: .bold))
-                    .multilineTextAlignment(.center)
-                    .frame(width: 50)
-            }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity)
             .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 110)
+            .background(
+                isRecording
+                    ? LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 1.0, green: 0.2, blue: 0.2),
+                            Color(red: 0.8, green: 0.0, blue: 0.0)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    : LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 0.1, green: 0.6, blue: 1.0),
+                            Color(red: 0.0, green: 0.4, blue: 0.9)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+            )
+            .cornerRadius(12)
         }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .accessibilityLabel(isRecording ? "Stop reflection" : "Start reflection")
     }
 }
